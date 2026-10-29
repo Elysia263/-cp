@@ -204,39 +204,41 @@
   }
   .rotateHint button:active { transform: scale(.96); }
 
-  /* ===== 视觉横屏：移动端竖屏时旋转整个页面 90° ===== */
+  /* ===== 视觉横屏：移动端竖屏时旋转游戏容器 90° ===== */
   html.force-landscape { overflow: visible; }
-  body.force-landscape {
+  .game-root { width: 100%; height: 100%; }
+  .game-root.force-landscape {
     width: 100vh;
     height: 100vw;
     transform: rotate(90deg);
     transform-origin: top left;
-    position: fixed;      /* fixed 不受 html overflow:hidden 裁剪 */
-    top: 100vh;           /* 旋转后正好覆盖视口 */
+    position: fixed;
+    top: 100vh;
     left: 0;
     overflow: hidden;
     padding: 0;
   }
   /* 旋转后 fixed 元素需改为 absolute，否则定位基准错乱 */
-  body.force-landscape .back,
-  body.force-landscape .joy {
+  .game-root.force-landscape .back,
+  .game-root.force-landscape .joy {
     position: absolute;
   }
-  body.force-landscape .joy {
+  .game-root.force-landscape .joy {
     left: 24px;
     bottom: 24px;
   }
-  body.force-landscape .back {
+  .game-root.force-landscape .back {
     top: 10px;
     left: 10px;
   }
-  body.force-landscape .wrap {
+  .game-root.force-landscape .wrap {
     width: min(92vh, 620px);
     margin: auto;
   }
 </style>
 </head>
 <body>
+<div class="game-root">
   <a class="back" href="../index.html">← 返回大厅</a>
   <div class="wrap">
     <h1>💗 邵白之恋 · 爱心贪吃蛇 💗</h1>
@@ -488,11 +490,11 @@
     if (isTouch && isPortrait) {
       // 移动端竖屏：用 CSS 旋转页面模拟横屏，不提示用户手动旋转
       document.documentElement.classList.add('force-landscape');
-      document.body.classList.add('force-landscape');
+      document.querySelector('.game-root').classList.add('force-landscape');
       rotateHint.style.display = 'none';
     } else {
       document.documentElement.classList.remove('force-landscape');
-      document.body.classList.remove('force-landscape');
+      document.querySelector('.game-root').classList.remove('force-landscape');
       rotateHint.style.display = 'none';
     }
   }
@@ -807,5 +809,6 @@
   });
 })();
 </script>
+</div>
 </body>
 </html>
