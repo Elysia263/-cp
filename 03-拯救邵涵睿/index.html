@@ -278,6 +278,30 @@
   }
   .rotateHint button:active { transform: scale(.96); }
 
+  /* ===== 视觉横屏：移动端竖屏时旋转整个页面 90° ===== */
+  body.force-landscape {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(90deg);
+    transform-origin: top left;
+    position: absolute;
+    top: 0;
+    left: 100vw;
+    overflow: hidden;
+  }
+  body.force-landscape #c {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  body.force-landscape .back,
+  body.force-landscape .top,
+  body.force-landscape .bars,
+  body.force-landscape .dashBtn,
+  body.force-landscape .rageBtn,
+  body.force-landscape .overlay {
+    position: absolute;
+  }
+
   .rbar { display: flex; gap: 3px; }
   .rbar .seg {
     width: 26px;
@@ -471,20 +495,25 @@
   var W = 0, H = 0, DPR = 1, bg = null;
   var mouse = { x: 0, y: 0, active: false };
 
-  // 横屏适配
+  // 横屏适配（视觉横屏方案）
   var rotateHint = document.getElementById('rotateHint');
   var rotateContinue = document.getElementById('rotateContinue');
   var landscapeMq = window.matchMedia('(orientation: landscape)');
 
   function checkOrientation() {
     var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    // 用 matchMedia 判断方向，比 innerWidth/Height 更可靠
     var isLandscape = landscapeMq.matches;
-    rotateHint.style.display = (!isLandscape && isTouch) ? 'flex' : 'none';
+    if (isTouch && !isLandscape) {
+      document.body.classList.add('force-landscape');
+      rotateHint.style.display = 'none';
+    } else {
+      document.body.classList.remove('force-landscape');
+      rotateHint.style.display = 'none';
+    }
+    resize();   // 方向变化后重新计算画布尺寸
   }
 
   function lockLandscape() {
-    // 移动端浏览器要求先进入全屏才能锁定方向
     var el = document.documentElement;
     var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
     function doLock() {
@@ -503,21 +532,18 @@
     }
   }
 
-  // 继续按钮：用户手动关闭提示（降级方案）
   rotateContinue.addEventListener('click', function () {
     rotateHint.style.display = 'none';
   });
 
-  // 监听方向变化（matchMedia change 比 resize/orientationchange 更可靠）
   if (landscapeMq.addEventListener) {
     landscapeMq.addEventListener('change', checkOrientation);
   } else if (landscapeMq.addListener) {
-    landscapeMq.addListener(checkOrientation);   // 旧 Safari 兼容
+    landscapeMq.addListener(checkOrientation);
   }
   window.addEventListener('resize', checkOrientation);
   window.addEventListener('orientationchange', checkOrientation);
 
-  // 首次交互时尝试全屏 + 锁横屏
   function onFirstInteract() {
     lockLandscape();
     checkOrientation();
@@ -656,8 +682,16 @@
   // ---------- 尺寸 ----------
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth;
-    H = window.innerHeight;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    // 视觉横屏时，逻辑宽高互换（页面旋转了90度）
+    if (document.body.classList.contains('force-landscape')) {
+      W = vh;
+      H = vw;
+    } else {
+      W = vw;
+      H = vh;
+    }
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px';
@@ -1153,6 +1187,15 @@
   }
 
   // ---------- 输入 ----------
+  function isVisualLandscape() {
+    return document.body.classList.contains('force-landscape');
+  }
+  // 视口坐标 → 游戏坐标（页面顺时针旋转90°后的映射）
+  function toGameXY(vx, vy) {
+    if (!isVisualLandscape()) return { x: vx, y: vy };
+    return { x: vy, y: window.innerWidth - vx };
+  }
+
   var KEYMAP = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
   document.addEventListener('keydown', function (e) {
     if (e.code === 'Space') { tryRage(); e.preventDefault(); return; }
@@ -1163,10 +1206,14 @@
   });
 
   function joyStart(x, y) {
+    var g = toGameXY(x, y);
     joy.active = true;
-    joy.ox = x; joy.oy = y; joy.x = x; joy.y = y;
+    joy.ox = g.x; joy.oy = g.y; joy.x = g.x; joy.y = g.y;
   }
-  function joyMove(x, y) { joy.x = x; joy.y = y; }
+  function joyMove(x, y) {
+    var g = toGameXY(x, y);
+    joy.x = g.x; joy.y = g.y;
+  }
   function joyEnd() { joy.active = false; }
 
   canvas.addEventListener('touchstart', function (e) {
@@ -1184,14 +1231,16 @@
   // 右键冲刺（朝鼠标方向）
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   canvas.addEventListener('mousemove', function (e) {
-    mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
+    var g = toGameXY(e.clientX, e.clientY);
+    mouse.x = g.x; mouse.y = g.y; mouse.active = true;
   });
   canvas.addEventListener('mouseleave', function () { mouse.active = false; });
   canvas.addEventListener('mousedown', function (e) {
     if (!player) return;
     if (e.button === 2) {
       e.preventDefault();
-      tryDash(e.clientX - player.x, e.clientY - player.y);
+      var g = toGameXY(e.clientX, e.clientY);
+      tryDash(g.x - player.x, g.y - player.y);
     }
   });
   dashBtn.addEventListener('click', function () { tryDash(0, 0); });

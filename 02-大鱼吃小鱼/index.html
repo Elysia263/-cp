@@ -245,6 +245,30 @@
     cursor: pointer;
   }
   .rotateHint button:active { transform: scale(.96); }
+
+  /* ===== 视觉横屏：移动端竖屏时旋转整个页面 90° ===== */
+  body.force-landscape {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(90deg);
+    transform-origin: top left;
+    position: absolute;
+    top: 0;
+    left: 100vw;
+    overflow: hidden;
+  }
+  body.force-landscape #c {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  body.force-landscape .back,
+  body.force-landscape .hud,
+  body.force-landscape .progress,
+  body.force-landscape .tip,
+  body.force-landscape .joy,
+  body.force-landscape .overlay {
+    position: absolute;
+  }
 </style>
 </head>
 <body>
@@ -449,8 +473,16 @@
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth;
-    H = window.innerHeight;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    // 视觉横屏时，逻辑宽高互换（页面旋转了90度）
+    if (document.body.classList.contains('force-landscape')) {
+      W = vh;
+      H = vw;
+    } else {
+      W = vw;
+      H = vh;
+    }
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px';
@@ -580,9 +612,18 @@
   }
 
   // ---------- 交互 ----------
+  function isVisualLandscape() {
+    return document.body.classList.contains('force-landscape');
+  }
+  // 视口坐标 → 游戏坐标（页面顺时针旋转90°后的映射）
+  function toGameXY(vx, vy) {
+    if (!isVisualLandscape()) return { x: vx, y: vy };
+    return { x: vy, y: window.innerWidth - vx };
+  }
   function setPointer(x, y) {
-    pointer.x = x;
-    pointer.y = y;
+    var g = toGameXY(x, y);
+    pointer.x = g.x;
+    pointer.y = g.y;
     pointer.active = true;
   }
   canvas.addEventListener('mousemove', function (e) { setPointer(e.clientX, e.clientY); });
@@ -627,8 +668,14 @@
       kx = dx; ky = dy;
     }
     joyKnob.style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
-    joy.dx = kx / JOY_R;
-    joy.dy = ky / JOY_R;
+    // 视觉横屏时，方向输出需旋转映射（游戏dx=视口dy, 游戏dy=-视口dx）
+    if (isVisualLandscape()) {
+      joy.dx = ky / JOY_R;
+      joy.dy = -kx / JOY_R;
+    } else {
+      joy.dx = kx / JOY_R;
+      joy.dy = ky / JOY_R;
+    }
   }
   function joyEnd() {
     joy.active = false;
@@ -640,7 +687,7 @@
   joyEl.addEventListener('touchend', joyEnd, { passive: true });
   joyEl.addEventListener('touchcancel', joyEnd, { passive: true });
 
-  // ---------- 横屏检测 ----------
+  // ---------- 横屏检测（视觉横屏方案） ----------
   var rotateHint = document.getElementById('rotateHint');
   var rotateContinue = document.getElementById('rotateContinue');
   var landscapeMq = window.matchMedia('(orientation: landscape)');
@@ -648,7 +695,14 @@
   function checkOrientation() {
     var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     var isLandscape = landscapeMq.matches;
-    rotateHint.style.display = (!isLandscape && isTouch) ? 'flex' : 'none';
+    if (isTouch && !isLandscape) {
+      document.body.classList.add('force-landscape');
+      rotateHint.style.display = 'none';
+    } else {
+      document.body.classList.remove('force-landscape');
+      rotateHint.style.display = 'none';
+    }
+    resize();   // 方向变化后重新计算画布尺寸
   }
 
   function lockLandscape() {

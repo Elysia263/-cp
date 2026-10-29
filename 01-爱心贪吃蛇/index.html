@@ -203,6 +203,36 @@
     cursor: pointer;
   }
   .rotateHint button:active { transform: scale(.96); }
+
+  /* ===== 视觉横屏：移动端竖屏时旋转整个页面 90° ===== */
+  body.force-landscape {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(90deg);
+    transform-origin: top left;
+    position: absolute;
+    top: 0;
+    left: 100vw;
+    overflow: hidden;
+    padding: 0;
+  }
+  /* 旋转后 fixed 元素需改为 absolute，否则定位基准错乱 */
+  body.force-landscape .back,
+  body.force-landscape .joy {
+    position: absolute;
+  }
+  body.force-landscape .joy {
+    left: 24px;
+    bottom: 24px;
+  }
+  body.force-landscape .back {
+    top: 10px;
+    left: 10px;
+  }
+  body.force-landscape .wrap {
+    width: min(92vh, 620px);
+    margin: auto;
+  }
 </style>
 </head>
 <body>
@@ -443,7 +473,7 @@
   joyEl.addEventListener('touchend', joyEnd, { passive: true });
   joyEl.addEventListener('touchcancel', joyEnd, { passive: true });
 
-  // ---------- 横屏检测 ----------
+  // ---------- 横屏检测（视觉横屏方案） ----------
   var rotateHint = document.getElementById('rotateHint');
   var rotateContinue = document.getElementById('rotateContinue');
   var landscapeMq = window.matchMedia('(orientation: landscape)');
@@ -451,10 +481,18 @@
   function checkOrientation() {
     var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     var isLandscape = landscapeMq.matches;
-    rotateHint.style.display = (!isLandscape && isTouch) ? 'flex' : 'none';
+    if (isTouch && !isLandscape) {
+      // 移动端竖屏：用 CSS 旋转页面模拟横屏，不提示用户手动旋转
+      document.body.classList.add('force-landscape');
+      rotateHint.style.display = 'none';
+    } else {
+      document.body.classList.remove('force-landscape');
+      rotateHint.style.display = 'none';
+    }
   }
 
   function lockLandscape() {
+    // 尽力而为：能锁就锁，锁不了靠视觉横屏兜底
     var el = document.documentElement;
     var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
     function doLock() {
