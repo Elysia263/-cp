@@ -247,13 +247,14 @@
   .rotateHint button:active { transform: scale(.96); }
 
   /* ===== 视觉横屏：移动端竖屏时旋转整个页面 90° ===== */
+  html.force-landscape { overflow: visible; }
   body.force-landscape {
     width: 100vh;
     height: 100vw;
     transform: rotate(90deg);
     transform-origin: top left;
-    position: absolute;
-    top: 100vh;   /* 旋转后正好覆盖视口 */
+    position: fixed;      /* fixed 不受 html overflow:hidden 裁剪 */
+    top: 100vh;           /* 旋转后正好覆盖视口 */
     left: 0;
     overflow: hidden;
   }
@@ -699,9 +700,11 @@
     // 直接用视口尺寸判断竖屏，比 matchMedia 更可靠
     var isPortrait = window.innerHeight > window.innerWidth;
     if (isTouch && isPortrait) {
+      document.documentElement.classList.add('force-landscape');
       document.body.classList.add('force-landscape');
       rotateHint.style.display = 'none';
     } else {
+      document.documentElement.classList.remove('force-landscape');
       document.body.classList.remove('force-landscape');
       rotateHint.style.display = 'none';
     }
