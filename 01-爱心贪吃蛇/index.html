@@ -115,6 +115,56 @@
     text-decoration: none;
     box-shadow: 0 4px 14px rgba(255, 105, 170, .25);
   }
+
+  /* 虚拟摇杆 */
+  .joy {
+    position: fixed;
+    left: 30px;
+    bottom: 36px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .35);
+    border: 2px solid rgba(255, 95, 162, .4);
+    z-index: 9;
+    touch-action: none;
+    display: none;
+  }
+  .joy .knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 52px;
+    height: 52px;
+    margin-left: -26px;
+    margin-top: -26px;
+    border-radius: 50%;
+    background: rgba(255, 95, 162, .7);
+    box-shadow: 0 4px 14px rgba(255, 77, 151, .5);
+    transition: transform .06s linear;
+  }
+
+  /* 竖屏提示 */
+  .rotateHint {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: #ffe3f1;
+    color: #d63f86;
+    text-align: center;
+    padding: 30px;
+  }
+  .rotateHint .ic { font-size: 64px; animation: rotPulse 1.6s ease-in-out infinite; }
+  @keyframes rotPulse {
+    0%, 100% { transform: rotate(-20deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .rotateHint p { font-size: 16px; line-height: 1.8; color: #b0577f; }
 </style>
 </head>
 <body>
@@ -136,7 +186,13 @@
         </div>
       </div>
     </div>
-    <div class="tip">方向键 / WASD 控制移动 · 手机滑动屏幕 · 吃到「邵」就会冒出粉色爱心</div>
+    <div class="tip">方向键 / WASD 控制移动 · 手机滑动屏幕或使用左下摇杆 · 吃到「邵」就会冒出粉色爱心</div>
+  </div>
+
+  <div class="joy" id="joy"><div class="knob" id="joyKnob"></div></div>
+  <div class="rotateHint" id="rotateHint">
+    <div class="ic">📱</div>
+    <p>请横屏游玩<br>获得最佳体验</p>
   </div>
 
 <script>
@@ -282,6 +338,85 @@
     if (Math.abs(dx) > Math.abs(dy)) queueDir(dx > 0 ? 'right' : 'left');
     else queueDir(dy > 0 ? 'down' : 'up');
   }, { passive: true });
+
+  // ---------- 虚拟摇杆（仅触屏设备显示）----------
+  var joyEl = document.getElementById('joy');
+  var joyKnob = document.getElementById('joyKnob');
+  var joyCenter = { x: 0, y: 0 };
+  var lastJoyDir = '';
+  var JOY_R = 46;
+
+  if ('ontouchstart' in window) joyEl.style.display = 'block';
+
+  function joyPoint(e) {
+    return e.touches ? e.touches[0] : e;
+  }
+  function joyStart(e) {
+    e.preventDefault();
+    var p = joyPoint(e);
+    var rect = joyEl.getBoundingClientRect();
+    joyCenter.x = rect.left + rect.width / 2;
+    joyCenter.y = rect.top + rect.height / 2;
+    lastJoyDir = '';
+    joyUpdate(p.clientX, p.clientY);
+  }
+  function joyUpdate(cx, cy) {
+    var dx = cx - joyCenter.x;
+    var dy = cy - joyCenter.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var kx, ky;
+    if (d > JOY_R) {
+      kx = dx / d * JOY_R;
+      ky = dy / d * JOY_R;
+    } else {
+      kx = dx; ky = dy;
+    }
+    joyKnob.style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
+
+    // 取主轴方向，仅在方向变化时入队，避免刷爆队列
+    if (Math.abs(dx) < 14 && Math.abs(dy) < 14) { lastJoyDir = ''; return; }
+    var dir;
+    if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 'right' : 'left';
+    else dir = dy > 0 ? 'down' : 'up';
+    if (dir !== lastJoyDir) {
+      lastJoyDir = dir;
+      if (state === 'ready') startGame();
+      queueDir(dir);
+    }
+  }
+  function joyMove(e) {
+    e.preventDefault();
+    var p = joyPoint(e);
+    joyUpdate(p.clientX, p.clientY);
+  }
+  function joyEnd() {
+    joyKnob.style.transform = 'translate(0,0)';
+    lastJoyDir = '';
+  }
+  joyEl.addEventListener('touchstart', joyStart, { passive: false });
+  joyEl.addEventListener('touchmove', joyMove, { passive: false });
+  joyEl.addEventListener('touchend', joyEnd, { passive: true });
+  joyEl.addEventListener('touchcancel', joyEnd, { passive: true });
+
+  // ---------- 横屏检测 ----------
+  var rotateHint = document.getElementById('rotateHint');
+  function checkOrientation() {
+    var isPortrait = window.innerHeight > window.innerWidth;
+    var isTouch = 'ontouchstart' in window;
+    rotateHint.style.display = (isPortrait && isTouch) ? 'flex' : 'none';
+  }
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', checkOrientation);
+  document.addEventListener('click', lockLandscape, { once: true });
+  document.addEventListener('touchstart', lockLandscape, { once: true, passive: true });
+  checkOrientation();
 
   startBtn.addEventListener('click', startGame);
 

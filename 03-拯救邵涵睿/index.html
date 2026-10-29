@@ -239,6 +239,31 @@
     border-color: rgba(255, 150, 180, .55);
   }
 
+  /* 竖屏提示遮罩 */
+  .rotateHint {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: #0d0709;
+    color: #ffcfa6;
+    text-align: center;
+    padding: 30px;
+  }
+  .rotateHint .ic {
+    font-size: 64px;
+    animation: rotPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes rotPulse {
+    0%, 100% { transform: rotate(-20deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .rotateHint p { font-size: 16px; line-height: 1.8; color: #d8b7ae; }
+
   .rbar { display: flex; gap: 3px; }
   .rbar .seg {
     width: 26px;
@@ -326,6 +351,11 @@
 </head>
 <body>
   <canvas id="c"></canvas>
+
+  <div class="rotateHint" id="rotateHint">
+    <div class="ic">📱</div>
+    <p>请横屏游玩<br>获得最佳体验</p>
+  </div>
 
   <a class="back" id="backLink" href="../index.html">← 返回大厅</a>
 
@@ -424,6 +454,27 @@
   var canvas = document.getElementById('c');
   var ctx = canvas.getContext('2d');
   var W = 0, H = 0, DPR = 1, bg = null;
+  var mouse = { x: 0, y: 0, active: false };
+
+  // 横屏适配
+  var rotateHint = document.getElementById('rotateHint');
+  function checkOrientation() {
+    var isPortrait = window.innerHeight > window.innerWidth;
+    var isTouch = 'ontouchstart' in window;
+    rotateHint.style.display = (isPortrait && isTouch) ? 'flex' : 'none';
+  }
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', checkOrientation);
+  document.addEventListener('click', lockLandscape, { once: true });
+  document.addEventListener('touchstart', lockLandscape, { once: true, passive: true });
+  checkOrientation();
 
   var overlay = document.getElementById('overlay');
   var ovTitle = document.getElementById('ovTitle');
@@ -1081,6 +1132,10 @@
 
   // 右键冲刺（朝鼠标方向）
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('mousemove', function (e) {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
+  });
+  canvas.addEventListener('mouseleave', function () { mouse.active = false; });
   canvas.addEventListener('mousedown', function (e) {
     if (!player) return;
     if (e.button === 2) {
@@ -1753,6 +1808,63 @@
     }
   }
 
+  function drawDashPreview() {
+    if (!player) return;
+    if (state !== 'playing') return;
+    var w = meleeWeapon();
+    if (!w || w.id !== 'katana') return;
+    if (!player.mode) return;
+    if (player.dash || player.dashCd > 0) return;
+
+    // 冲刺方向：桌面端跟随鼠标，移动端跟随最近敌人瞄准方向
+    var dx, dy;
+    if (mouse.active) {
+      dx = mouse.x - player.x;
+      dy = mouse.y - player.y;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) { dx = Math.cos(player.aim); dy = Math.sin(player.aim); }
+      else { dx /= len; dy /= len; }
+    } else {
+      dx = Math.cos(player.aim);
+      dy = Math.sin(player.aim);
+    }
+
+    var ex = Math.max(player.r, Math.min(W - player.r, player.x + dx * DASH_DIST));
+    var ey = Math.max(player.r, Math.min(H - player.r, player.y + dy * DASH_DIST));
+
+    ctx.save();
+    ctx.lineCap = 'round';
+
+    // 外圈辉光
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = w.star === 2 ? '#ffd76a' : '#ff8f6b';
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // 中心线
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = w.star === 2 ? '#ffefb0' : '#ffd9b8';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 8]);
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 终点圆点
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = w.star === 2 ? '#ffd76a' : '#ff8f6b';
+    ctx.beginPath();
+    ctx.arc(ex, ey, 7, 0, PI2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function drawJoystick() {
     if (!joy.active) return;
     var dx = joy.x - joy.ox, dy = joy.y - joy.oy;
@@ -1867,6 +1979,7 @@
         ctx.restore();
       }
     }
+    drawDashPreview();
     drawJoystick();
     ctx.restore();
 

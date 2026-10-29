@@ -181,6 +181,56 @@
     transition: opacity .3s ease;
   }
   .tip.hide { opacity: 0; }
+
+  /* 虚拟摇杆 */
+  .joy {
+    position: fixed;
+    left: 30px;
+    bottom: 36px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(10, 62, 82, .35);
+    border: 2px solid rgba(120, 226, 232, .4);
+    z-index: 30;
+    touch-action: none;
+    display: none;
+  }
+  .joy .knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 52px;
+    height: 52px;
+    margin-left: -26px;
+    margin-top: -26px;
+    border-radius: 50%;
+    background: rgba(120, 226, 232, .7);
+    box-shadow: 0 4px 14px rgba(63, 208, 196, .5);
+    transition: transform .06s linear;
+  }
+
+  /* 竖屏提示 */
+  .rotateHint {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: #02131f;
+    color: #8df3e6;
+    text-align: center;
+    padding: 30px;
+  }
+  .rotateHint .ic { font-size: 64px; animation: rotPulse 1.6s ease-in-out infinite; }
+  @keyframes rotPulse {
+    0%, 100% { transform: rotate(-20deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .rotateHint p { font-size: 16px; line-height: 1.8; color: #6fa9b6; }
 </style>
 </head>
 <body>
@@ -212,6 +262,12 @@
   </div>
 
   <div class="tip" id="tip">移动鼠标 / 手指拖动，让鱼跟着你游</div>
+
+  <div class="joy" id="joy"><div class="knob" id="joyKnob"></div></div>
+  <div class="rotateHint" id="rotateHint">
+    <div class="ic">📱</div>
+    <p>请横屏游玩<br>获得最佳体验</p>
+  </div>
 
 <script>
 (function () {
@@ -252,6 +308,7 @@
   var player, fishes = [], bubbles = [], sparks = [];
   var elapsed = 0, spawnTimer = 0, last = 0;
   var pointer = { x: 0, y: 0, active: false };
+  var joy = { active: false, dx: 0, dy: 0 };   // 虚拟摇杆方向（归一化）
 
   // 素材
   var faceShao = null, faceGhost = null;
@@ -524,12 +581,90 @@
     setPointer(t.clientX, t.clientY);
   }, { passive: false });
 
+  // ---------- 虚拟摇杆（仅触屏设备显示）----------
+  var joyEl = document.getElementById('joy');
+  var joyKnob = document.getElementById('joyKnob');
+  var joyCenter = { x: 0, y: 0 };
+  var JOY_R = 46;
+
+  if ('ontouchstart' in window) joyEl.style.display = 'block';
+
+  function joyStart(e) {
+    e.preventDefault();
+    var t = e.touches[0];
+    var rect = joyEl.getBoundingClientRect();
+    joyCenter.x = rect.left + rect.width / 2;
+    joyCenter.y = rect.top + rect.height / 2;
+    joy.active = true;
+    joyMove(e);
+  }
+  function joyMove(e) {
+    e.preventDefault();
+    var t = e.touches[0];
+    var dx = t.clientX - joyCenter.x;
+    var dy = t.clientY - joyCenter.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var kx, ky;
+    if (d > JOY_R) {
+      kx = dx / d * JOY_R;
+      ky = dy / d * JOY_R;
+    } else {
+      kx = dx; ky = dy;
+    }
+    joyKnob.style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
+    joy.dx = kx / JOY_R;
+    joy.dy = ky / JOY_R;
+  }
+  function joyEnd() {
+    joy.active = false;
+    joy.dx = 0; joy.dy = 0;
+    joyKnob.style.transform = 'translate(0,0)';
+  }
+  joyEl.addEventListener('touchstart', joyStart, { passive: false });
+  joyEl.addEventListener('touchmove', joyMove, { passive: false });
+  joyEl.addEventListener('touchend', joyEnd, { passive: true });
+  joyEl.addEventListener('touchcancel', joyEnd, { passive: true });
+
+  // ---------- 横屏检测 ----------
+  var rotateHint = document.getElementById('rotateHint');
+  function checkOrientation() {
+    var isPortrait = window.innerHeight > window.innerWidth;
+    var isTouch = 'ontouchstart' in window;
+    rotateHint.style.display = (isPortrait && isTouch) ? 'flex' : 'none';
+  }
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', checkOrientation);
+  document.addEventListener('click', lockLandscape, { once: true });
+  document.addEventListener('touchstart', lockLandscape, { once: true, passive: true });
+  checkOrientation();
+
   // ---------- 逻辑 ----------
   function updatePlayer(dt) {
     var p = player;
     var maxSpeed = Math.max(220, 420 - p.r * 1.5);
 
-    if (pointer.active) {
+    if (joy.active) {
+      // 摇杆控制：朝摇杆方向匀速游动
+      var jl = Math.sqrt(joy.dx * joy.dx + joy.dy * joy.dy);
+      if (jl > 0.01) {
+        var nx = joy.dx / jl, ny = joy.dy / jl;
+        var speed = maxSpeed * Math.min(1, jl);
+        p.x += nx * speed * dt;
+        p.y += ny * speed * dt;
+        p.vx = nx * speed;
+        p.vy = ny * speed;
+      } else {
+        p.vx *= 0.82;
+        p.vy *= 0.82;
+      }
+    } else if (pointer.active) {
       var dx = pointer.x - p.x;
       var dy = pointer.y - p.y;
       var d = Math.sqrt(dx * dx + dy * dy);
