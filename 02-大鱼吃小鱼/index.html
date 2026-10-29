@@ -231,6 +231,19 @@
     50% { transform: rotate(20deg); }
   }
   .rotateHint p { font-size: 16px; line-height: 1.8; color: #6fa9b6; }
+  .rotateHint button {
+    margin-top: 6px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: #02222c;
+    background: linear-gradient(135deg, #9bf3e3, #3fd0c4);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 28px;
+    cursor: pointer;
+  }
+  .rotateHint button:active { transform: scale(.96); }
 </style>
 </head>
 <body>
@@ -267,6 +280,7 @@
   <div class="rotateHint" id="rotateHint">
     <div class="ic">📱</div>
     <p>请横屏游玩<br>获得最佳体验</p>
+    <button id="rotateContinue">继续游戏</button>
   </div>
 
 <script>
@@ -627,22 +641,53 @@
 
   // ---------- 横屏检测 ----------
   var rotateHint = document.getElementById('rotateHint');
+  var rotateContinue = document.getElementById('rotateContinue');
+  var landscapeMq = window.matchMedia('(orientation: landscape)');
+
   function checkOrientation() {
-    var isPortrait = window.innerHeight > window.innerWidth;
-    var isTouch = 'ontouchstart' in window;
-    rotateHint.style.display = (isPortrait && isTouch) ? 'flex' : 'none';
+    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isLandscape = landscapeMq.matches;
+    rotateHint.style.display = (!isLandscape && isTouch) ? 'flex' : 'none';
   }
+
   function lockLandscape() {
-    try {
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(function () {});
-      }
-    } catch (e) {}
+    var el = document.documentElement;
+    var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    function doLock() {
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(function () {});
+        }
+      } catch (e) {}
+    }
+    if (fs) {
+      var p = fs.call(el);
+      if (p && p.then) p.then(doLock).catch(function () { doLock(); });
+      else doLock();
+    } else {
+      doLock();
+    }
+  }
+
+  rotateContinue.addEventListener('click', function () {
+    rotateHint.style.display = 'none';
+  });
+
+  if (landscapeMq.addEventListener) {
+    landscapeMq.addEventListener('change', checkOrientation);
+  } else if (landscapeMq.addListener) {
+    landscapeMq.addListener(checkOrientation);
   }
   window.addEventListener('resize', checkOrientation);
   window.addEventListener('orientationchange', checkOrientation);
-  document.addEventListener('click', lockLandscape, { once: true });
-  document.addEventListener('touchstart', lockLandscape, { once: true, passive: true });
+
+  function onFirstInteract() {
+    lockLandscape();
+    checkOrientation();
+  }
+  document.addEventListener('click', onFirstInteract, { once: true });
+  document.addEventListener('touchstart', onFirstInteract, { once: true, passive: true });
+
   checkOrientation();
 
   // ---------- 逻辑 ----------

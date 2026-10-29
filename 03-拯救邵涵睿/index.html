@@ -263,6 +263,19 @@
     50% { transform: rotate(20deg); }
   }
   .rotateHint p { font-size: 16px; line-height: 1.8; color: #d8b7ae; }
+  .rotateHint button {
+    margin-top: 6px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0d0709;
+    background: linear-gradient(135deg, #ffd6a3, #ff9b6b);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 28px;
+    cursor: pointer;
+  }
+  .rotateHint button:active { transform: scale(.96); }
 
   .rbar { display: flex; gap: 3px; }
   .rbar .seg {
@@ -355,6 +368,7 @@
   <div class="rotateHint" id="rotateHint">
     <div class="ic">📱</div>
     <p>请横屏游玩<br>获得最佳体验</p>
+    <button id="rotateContinue">继续游戏</button>
   </div>
 
   <a class="back" id="backLink" href="../index.html">← 返回大厅</a>
@@ -458,22 +472,58 @@
 
   // 横屏适配
   var rotateHint = document.getElementById('rotateHint');
+  var rotateContinue = document.getElementById('rotateContinue');
+  var landscapeMq = window.matchMedia('(orientation: landscape)');
+
   function checkOrientation() {
-    var isPortrait = window.innerHeight > window.innerWidth;
-    var isTouch = 'ontouchstart' in window;
-    rotateHint.style.display = (isPortrait && isTouch) ? 'flex' : 'none';
+    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    // 用 matchMedia 判断方向，比 innerWidth/Height 更可靠
+    var isLandscape = landscapeMq.matches;
+    rotateHint.style.display = (!isLandscape && isTouch) ? 'flex' : 'none';
   }
+
   function lockLandscape() {
-    try {
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(function () {});
-      }
-    } catch (e) {}
+    // 移动端浏览器要求先进入全屏才能锁定方向
+    var el = document.documentElement;
+    var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    function doLock() {
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(function () {});
+        }
+      } catch (e) {}
+    }
+    if (fs) {
+      var p = fs.call(el);
+      if (p && p.then) p.then(doLock).catch(function () { doLock(); });
+      else doLock();
+    } else {
+      doLock();
+    }
+  }
+
+  // 继续按钮：用户手动关闭提示（降级方案）
+  rotateContinue.addEventListener('click', function () {
+    rotateHint.style.display = 'none';
+  });
+
+  // 监听方向变化（matchMedia change 比 resize/orientationchange 更可靠）
+  if (landscapeMq.addEventListener) {
+    landscapeMq.addEventListener('change', checkOrientation);
+  } else if (landscapeMq.addListener) {
+    landscapeMq.addListener(checkOrientation);   // 旧 Safari 兼容
   }
   window.addEventListener('resize', checkOrientation);
   window.addEventListener('orientationchange', checkOrientation);
-  document.addEventListener('click', lockLandscape, { once: true });
-  document.addEventListener('touchstart', lockLandscape, { once: true, passive: true });
+
+  // 首次交互时尝试全屏 + 锁横屏
+  function onFirstInteract() {
+    lockLandscape();
+    checkOrientation();
+  }
+  document.addEventListener('click', onFirstInteract, { once: true });
+  document.addEventListener('touchstart', onFirstInteract, { once: true, passive: true });
+
   checkOrientation();
 
   var overlay = document.getElementById('overlay');
