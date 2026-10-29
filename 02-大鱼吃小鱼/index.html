@@ -253,8 +253,8 @@
     transform: rotate(90deg);
     transform-origin: top left;
     position: absolute;
-    top: 0;
-    left: 100vw;
+    top: 100vh;   /* 旋转后正好覆盖视口 */
+    left: 0;
     overflow: hidden;
   }
   body.force-landscape #c {
@@ -615,10 +615,10 @@
   function isVisualLandscape() {
     return document.body.classList.contains('force-landscape');
   }
-  // 视口坐标 → 游戏坐标（页面顺时针旋转90°后的映射）
+  // 视口坐标 → 游戏坐标（页面顺时针旋转90°后的映射，配合 top:100vh 定位）
   function toGameXY(vx, vy) {
     if (!isVisualLandscape()) return { x: vx, y: vy };
-    return { x: vy, y: window.innerWidth - vx };
+    return { x: window.innerHeight - vy, y: vx };
   }
   function setPointer(x, y) {
     var g = toGameXY(x, y);
