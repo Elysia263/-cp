@@ -116,32 +116,57 @@
     box-shadow: 0 4px 14px rgba(255, 105, 170, .25);
   }
 
-  /* 虚拟摇杆 */
+  /* 虚拟摇杆（十字型） */
   .joy {
     position: fixed;
     left: 30px;
     bottom: 36px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, .35);
-    border: 2px solid rgba(255, 95, 162, .4);
+    width: 140px;
+    height: 140px;
     z-index: 9;
     touch-action: none;
     display: none;
   }
+  /* 十字形底座：水平 + 垂直两条线 */
+  .joy::before, .joy::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 95, 162, .32);
+    border-radius: 5px;
+    pointer-events: none;
+  }
+  .joy::before {   /* 横线 */
+    left: 12px; right: 12px; top: 50%;
+    height: 9px; margin-top: -4.5px;
+  }
+  .joy::after {    /* 竖线 */
+    top: 12px; bottom: 12px; left: 50%;
+    width: 9px; margin-left: -4.5px;
+  }
+  .joy .arr {
+    position: absolute;
+    color: rgba(255, 95, 162, .65);
+    font-size: 20px;
+    line-height: 1;
+    pointer-events: none;
+  }
+  .joy .arr.up    { top: 2px;  left: 50%; margin-left: -10px; }
+  .joy .arr.down  { bottom: 2px; left: 50%; margin-left: -10px; }
+  .joy .arr.left  { left: 2px; top: 50%; margin-top: -10px; }
+  .joy .arr.right { right: 2px; top: 50%; margin-top: -10px; }
   .joy .knob {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 52px;
-    height: 52px;
-    margin-left: -26px;
-    margin-top: -26px;
+    width: 54px;
+    height: 54px;
+    margin-left: -27px;
+    margin-top: -27px;
     border-radius: 50%;
-    background: rgba(255, 95, 162, .7);
-    box-shadow: 0 4px 14px rgba(255, 77, 151, .5);
+    background: radial-gradient(circle at 35% 30%, #ff9ec4, #ff4d97);
+    box-shadow: 0 4px 16px rgba(255, 77, 151, .55);
     transition: transform .06s linear;
+    z-index: 2;
   }
 
   /* 竖屏提示 */
@@ -202,7 +227,13 @@
     <div class="tip">方向键 / WASD 控制移动 · 手机滑动屏幕或使用左下摇杆 · 吃到「邵」就会冒出粉色爱心</div>
   </div>
 
-  <div class="joy" id="joy"><div class="knob" id="joyKnob"></div></div>
+  <div class="joy" id="joy">
+    <span class="arr up">▲</span>
+    <span class="arr down">▼</span>
+    <span class="arr left">◀</span>
+    <span class="arr right">▶</span>
+    <div class="knob" id="joyKnob"></div>
+  </div>
   <div class="rotateHint" id="rotateHint">
     <div class="ic">📱</div>
     <p>请横屏游玩<br>获得最佳体验</p>
