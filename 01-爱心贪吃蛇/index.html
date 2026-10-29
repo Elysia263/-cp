@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>邵白之恋 · 爱心贪吃蛇</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: linear-gradient(160deg, #ffe3f1 0%, #ffd6e8 45%, #ffeef6 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;            /* 防止手机下拉刷新/橡皮筋滚动 */
+    -webkit-user-select: none;
+    user-select: none;                    /* 防止长按选中文字 */
+    -webkit-touch-callout: none;          /* 防止 iOS 长按弹出保存图片菜单 */
+  }
+  .wrap {
+    background: #fff;
+    border-radius: 28px;
+    box-shadow: 0 18px 50px rgba(255, 105, 170, .25);
+    padding: 22px 24px 26px;
+    width: min(92vw, 620px);
+  }
+  h1 {
+    text-align: center;
+    color: #ff5fa2;
+    font-size: 28px;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .badge {
+    flex: 1;
+    text-align: center;
+    background: linear-gradient(135deg, #fff0f7, #ffe0ee);
+    border: 2px solid #ffc2dd;
+    border-radius: 999px;
+    padding: 8px 0;
+    color: #d63f86;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .badge span { color: #ff5fa2; font-size: 20px; margin-left: 6px; }
+  .stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 18px;
+    border: 5px solid #ff9ec4;
+    background: #fff3f8;
+    touch-action: none;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    background: rgba(255, 240, 247, .85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity .25s ease;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .panel { text-align: center; padding: 24px; }
+  .panel h2 { color: #ff5fa2; font-size: 30px; margin-bottom: 12px; }
+  .panel p { color: #b0577f; font-size: 15px; line-height: 1.9; margin-bottom: 20px; }
+  .panel .final { font-size: 18px; color: #d63f86; font-weight: 700; margin-bottom: 18px; }
+  button {
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #ff7eb6, #ff4d97);
+    border: none;
+    border-radius: 999px;
+    padding: 13px 44px;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(255, 77, 151, .4);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  button:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 26px rgba(255, 77, 151, .5); }
+  button:active { transform: scale(.96); }
+  .tip { text-align: center; color: #c988aa; font-size: 13px; margin-top: 12px; }
+  .back {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .8);
+    color: #d63f86;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(255, 105, 170, .25);
+  }
+</style>
+</head>
+<body>
+  <a class="back" href="../index.html">← 返回大厅</a>
+  <div class="wrap">
+    <h1>💗 邵白之恋 · 爱心贪吃蛇 💗</h1>
+    <div class="hud">
+      <div class="badge">得分<span id="score">0</span></div>
+      <div class="badge">最高<span id="best">0</span></div>
+    </div>
+    <div class="stage">
+      <canvas id="game" width="560" height="560"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="panel">
+          <h2 id="ovTitle">加载中…</h2>
+          <p id="ovText">正在加载头像贴图</p>
+          <div class="final" id="ovFinal" style="display:none"></div>
+          <button id="startBtn" style="display:none">开始游戏</button>
+        </div>
+      </div>
+    </div>
+    <div class="tip">方向键 / WASD 控制移动 · 手机滑动屏幕 · 吃到「邵」就会冒出粉色爱心</div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 常量 ----------
+  var COLS = 20, ROWS = 20, SIZE = 560, CELL = SIZE / COLS;
+
+  var DIRS = {
+    up:    { x: 0, y: -1 },
+    down:  { x: 0, y: 1 },
+    left:  { x: -1, y: 0 },
+    right: { x: 1, y: 0 }
+  };
+
+  // 蛇头 = 白，蛇身 = 邵，食物贴图与蛇身相同（邵）
+  var HEAD_URL = '素材库/白.jpg';
+  var BODY_URL = '素材库/邵.jpg';
+
+  // ---------- DOM ----------
+  var canvas = document.getElementById('game');
+  // 高清屏适配：手机视网膜屏(DPR 2~3)下 canvas 按物理像素渲染，不模糊
+  var DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  var SPRITE_SS = Math.max(2, Math.ceil(DPR));
+  canvas.width = canvas.height = Math.round(SIZE * DPR);
+  var ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);   // 之后所有绘制仍使用 0..SIZE 的逻辑坐标
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var ovFinal = document.getElementById('ovFinal');
+  var startBtn = document.getElementById('startBtn');
+
+  // ---------- 游戏状态 ----------
+  var snake, prevSnake, dir, dirQueue, food, score, best, state, tick, acc, last;
+  var hearts = [];
+  var headImg = null, bodyImg = null;
+  // 离屏精灵（预渲染一次，每帧只 drawImage）
+  var boardCanvas = null, headSprite = null, bodySprite = null, heartSprites = [];
+  best = parseInt(localStorage.getItem('shaobai-snake-best') || '0', 10);
+  bestEl.textContent = best;
+
+  // ---------- 图片加载（本地素材，同源加载） ----------
+  function loadImg(src) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { resolve(null); };
+      img.src = src;
+    });
+  }
+
+  // ---------- 初始化 / 重开 ----------
+  function reset() {
+    snake = [ { x: 9, y: 10 }, { x: 8, y: 10 }, { x: 7, y: 10 } ];
+    prevSnake = snake.map(function (s) { return { x: s.x, y: s.y }; });
+    dir = DIRS.right;
+    dirQueue = [];
+    score = 0;
+    tick = 150;
+    acc = 0;
+    hearts = [];
+    scoreEl.textContent = '0';
+    placeFood();
+  }
+
+  function startGame() {
+    reset();
+    state = 'playing';
+    overlay.classList.add('hidden');
+  }
+
+  function gameOver() {
+    state = 'over';
+    if (score > best) {
+      best = score;
+      localStorage.setItem('shaobai-snake-best', String(best));
+      bestEl.textContent = best;
+    }
+    ovTitle.textContent = '游戏结束';
+    ovText.style.display = 'none';
+    ovFinal.style.display = 'block';
+    ovFinal.textContent = '本局得分：' + score + '　最高：' + best;
+    startBtn.style.display = 'inline-block';
+    startBtn.textContent = '再来一局';
+    overlay.classList.remove('hidden');
+  }
+
+  // ---------- 食物 ----------
+  function placeFood() {
+    var empty = [];
+    for (var x = 0; x < COLS; x++) {
+      for (var y = 0; y < ROWS; y++) {
+        if (!snake.some(function (s) { return s.x === x && s.y === y; })) {
+          empty.push({ x: x, y: y });
+        }
+      }
+    }
+    food = empty[Math.floor(Math.random() * empty.length)];
+  }
+
+  // ---------- 方向控制 ----------
+  function queueDir(name) {
+    if (state !== 'playing') return;
+    var nd = DIRS[name];
+    var lastQueued = dirQueue.length ? dirQueue[dirQueue.length - 1] : dir;
+    if (nd.x === -lastQueued.x && nd.y === -lastQueued.y) return; // 禁止 180° 掉头
+    if (nd.x === lastQueued.x && nd.y === lastQueued.y) return;
+    if (dirQueue.length < 3) dirQueue.push(nd);
+  }
+
+  var KEYMAP = {
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
+  };
+  document.addEventListener('keydown', function (e) {
+    if (KEYMAP[e.code]) {
+      e.preventDefault();
+      if (state === 'ready') startGame();
+      queueDir(KEYMAP[e.code]);
+    } else if ((e.code === 'Space' || e.code === 'Enter') && (state === 'ready' || state === 'over')) {
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+  // 触屏滑动
+  var touchStart = null;
+  canvas.addEventListener('touchstart', function (e) {
+    var t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
+  canvas.addEventListener('touchend', function (e) {
+    if (!touchStart) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - touchStart.x;
+    var dy = t.clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) queueDir(dx > 0 ? 'right' : 'left');
+    else queueDir(dy > 0 ? 'down' : 'up');
+  }, { passive: true });
+
+  startBtn.addEventListener('click', startGame);
+
+  // ---------- 粉色爱心粒子 ----------
+  var HEART_COLORS = ['#ff4d97', '#ff7eb6', '#ff9ecb', '#ff5fa2'];
+  var HEART_S = 24;   // 爱心精灵中烘焙的心形尺寸
+  var HEART_BOX = 64; // 爱心精灵画布边长
+
+  function spawnHearts(cx, cy) {
+    for (var i = 0; i < 22; i++) {
+      hearts.push({
+        x: cx + (Math.random() - 0.5) * CELL * 1.2,
+        y: cy + (Math.random() - 0.5) * CELL * 0.6,
+        vx: (Math.random() - 0.5) * 2.4,
+        vy: -1.0 - Math.random() * 2.4,
+        size: 9 + Math.random() * 13,
+        life: 1,
+        decay: 0.010 + Math.random() * 0.012,
+        rot: (Math.random() - 0.5) * 0.9,
+        vr: (Math.random() - 0.5) * 0.07,
+        ci: Math.floor(Math.random() * HEART_COLORS.length)
+      });
+    }
+  }
+
+  // 按帧间隔归一化更新，60Hz / 144Hz / 165Hz 屏幕下速度一致
+  function updateHearts(dt) {
+    var f = dt / 16.7;
+    for (var i = hearts.length - 1; i >= 0; i--) {
+      var h = hearts[i];
+      h.x += h.vx * f;
+      h.y += h.vy * f;
+      h.vy += 0.045 * f;   // 轻微重力：爱心先向上飘起再缓缓落下
+      h.vx *= Math.pow(0.98, f);
+      h.rot += h.vr * f;
+      h.life -= h.decay * f;
+      if (h.life <= 0) hearts.splice(i, 1);
+    }
+  }
+
+  function heartPath(c, s) {
+    c.beginPath();
+    c.moveTo(0, s * 0.28);
+    c.bezierCurveTo(0, s * 0.06, -s * 0.52, -s * 0.16, -s * 0.52, s * 0.26);
+    c.bezierCurveTo(-s * 0.52, s * 0.58, -s * 0.08, s * 0.78, 0, s);
+    c.bezierCurveTo(s * 0.08, s * 0.78, s * 0.52, s * 0.58, s * 0.52, s * 0.26);
+    c.bezierCurveTo(s * 0.52, -s * 0.16, 0, s * 0.06, 0, s * 0.28);
+    c.closePath();
+  }
+
+  // 爱心贝塞尔路径只构建一次，烘焙成离屏精灵
+  function makeHeartSprite(color) {
+    var SS = SPRITE_SS;
+    var c = document.createElement('canvas');
+    c.width = c.height = HEART_BOX * SS;
+    var g = c.getContext('2d');
+    g.scale(SS, SS);
+    g.translate(HEART_BOX / 2, HEART_BOX / 2 - HEART_S * 0.42);
+    heartPath(g, HEART_S);
+    g.fillStyle = color;
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,.7)';
+    g.beginPath();
+    g.arc(-HEART_S * 0.18, HEART_S * 0.2, HEART_S * 0.08, 0, Math.PI * 2);
+    g.fill();
+    return c;
+  }
+
+  function drawHearts() {
+    for (var i = 0; i < hearts.length; i++) {
+      var h = hearts[i];
+      var box = HEART_BOX * (h.size / HEART_S);
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.rot);
+      ctx.globalAlpha = Math.max(0, Math.min(1, h.life));
+      ctx.drawImage(heartSprites[h.ci], -box / 2, -box / 2, box, box);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- 游戏逻辑 ----------
+  function step() {
+    if (dirQueue.length) dir = dirQueue.shift();
+    var head = snake[0];
+    var nx = head.x + dir.x;
+    var ny = head.y + dir.y;
+
+    // 撞墙：传统规则，游戏结束
+    if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) {
+      gameOver();
+      return;
+    }
+
+    var eating = (nx === food.x && ny === food.y);
+    // 没吃到食物时尾巴会移走，最后一节不算碰撞
+    var bodyToCheck = eating ? snake : snake.slice(0, -1);
+    var hitSelf = bodyToCheck.some(function (s) { return s.x === nx && s.y === ny; });
+    if (hitSelf) {
+      gameOver();
+      return;
+    }
+
+    snake.unshift({ x: nx, y: ny });
+    if (eating) {
+      score++;
+      scoreEl.textContent = score;
+      tick = Math.max(75, 150 - score * 3);   // 越吃越快
+      // 蛇头接触食物：粉色爱心特效！
+      spawnHearts((nx + 0.5) * CELL, (ny + 0.5) * CELL);
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  // ---------- 离屏精灵预渲染 ----------
+  // 棋盘格只画一次，之后每帧一张 drawImage
+  function makeBoard() {
+    var c = document.createElement('canvas');
+    c.width = c.height = SIZE * SPRITE_SS;
+    var g = c.getContext('2d');
+    g.scale(SPRITE_SS, SPRITE_SS);
+    for (var x = 0; x < COLS; x++) {
+      for (var y = 0; y < ROWS; y++) {
+        g.fillStyle = (x + y) % 2 === 0 ? '#ffeef6' : '#ffe4f0';
+        g.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    return c;
+  }
+
+  // 圆形头像精灵：红底证件照裁剪为圆形 + 白边 + 柔和阴影，2 倍超采样烘焙
+  function makeAvatarSprite(img, r, ringW, fallbackChar, fallbackColor) {
+    var SS = SPRITE_SS;
+    var pad = ringW + 7;          // 留出白边和阴影的余量
+    var half = r + pad;
+    var c = document.createElement('canvas');
+    c.width = c.height = Math.ceil(half * 2 * SS);
+    var g = c.getContext('2d');
+    g.scale(SS, SS);
+    var cx = half, cy = half;
+    g.beginPath();
+    g.arc(cx, cy + 2.5, r, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(214, 63, 134, .18)';
+    g.fill();
+    g.save();
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.clip();
+    if (img) {
+      // cover 方式填满圆
+      var s = Math.max((2 * r) / img.width, (2 * r) / img.height);
+      var w = img.width * s, h = img.height * s;
+      g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+    } else {
+      g.fillStyle = fallbackColor;
+      g.fillRect(cx - r, cy - r, r * 2, r * 2);
+      g.fillStyle = '#fff';
+      g.font = 'bold ' + Math.round(r * 1.2) + 'px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(fallbackChar, cx, cy + 1);
+    }
+    g.restore();
+    g.lineWidth = ringW;
+    g.strokeStyle = '#ffffff';
+    g.beginPath();
+    g.arc(cx, cy, r - ringW / 2 + 0.5, 0, Math.PI * 2);
+    g.stroke();
+    return { canvas: c, half: half, r: r };
+  }
+
+  function drawSprite(sp, cx, cy, r) {
+    var k = r / sp.r;
+    var h = sp.half * k;
+    ctx.drawImage(sp.canvas, cx - h, cy - h, h * 2, h * 2);
+  }
+
+  function buildSprites() {
+    headSprite = makeAvatarSprite(headImg, CELL * 0.48, 3, '白', '#7ec8ff');
+    bodySprite = makeAvatarSprite(bodyImg, CELL * 0.45, 2, '邵', '#ff8fb8');
+  }
+
+  // ---------- 渲染 ----------
+  function drawFood(t) {
+    var cx = (food.x + 0.5) * CELL;
+    var cy = (food.y + 0.5) * CELL;
+    var r = CELL * 0.42;
+    // 粉色脉动光环，和蛇身区分
+    var pulse = 1 + Math.sin(t / 200) * 0.12;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.45 * pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 95, 162, ' + (0.55 - (pulse - 1) * 2) + ')';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 158, 196, .5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    drawSprite(bodySprite, cx, cy, r);
+  }
+
+  // p = 0..1：本格移动的插值进度，蛇身在格子间平滑滑动
+  function drawSnake(p) {
+    var pos = [];
+    for (var i = 0; i < snake.length; i++) {
+      var cur = snake[i];
+      var pv = prevSnake[Math.min(i, prevSnake.length - 1)] || cur;
+      pos.push({
+        x: (pv.x + (cur.x - pv.x) * p + 0.5) * CELL,
+        y: (pv.y + (cur.y - pv.y) * p + 0.5) * CELL
+      });
+    }
+    // 从尾巴画到头，头在最上层
+    for (var j = pos.length - 1; j >= 1; j--) {
+      drawSprite(bodySprite, pos[j].x, pos[j].y, CELL * 0.40);
+    }
+    drawSprite(headSprite, pos[0].x, pos[0].y, CELL * 0.48);
+  }
+
+  function render(t, p) {
+    ctx.drawImage(boardCanvas, 0, 0, SIZE, SIZE);
+    drawFood(t);
+    drawSnake(p);
+    drawHearts();
+  }
+
+  // ---------- 主循环（固定调用顺序：更新特效→逻辑→渲染） ----------
+  function frame(t) {
+    requestAnimationFrame(frame);
+    if (!last) last = t;
+    var dt = t - last;
+    last = t;
+    if (dt > 100) dt = 100;   // 切后台回来时钳制帧间隔，避免逻辑追帧螺旋
+    if (state === 'playing') {
+      acc += dt;
+      while (acc >= tick) {
+        acc -= tick;
+        prevSnake = snake.map(function (s) { return { x: s.x, y: s.y }; });
+        step();
+        if (state !== 'playing') { acc = 0; break; }
+      }
+    }
+    updateHearts(dt);
+    var p = state === 'playing' ? acc / tick : 1;
+    if (p < 0) p = 0; else if (p > 1) p = 1;
+    render(t, p);
+  }
+
+  // ---------- 启动：先初始化数据再开循环，避免首帧渲染空对象 ----------
+  state = 'loading';
+  boardCanvas = makeBoard();
+  heartSprites = HEART_COLORS.map(makeHeartSprite);
+  buildSprites();   // 图片未就绪时先用占位字精灵，加载完成后重建
+  reset();
+  requestAnimationFrame(frame);
+  Promise.all([loadImg(HEAD_URL), loadImg(BODY_URL)]).then(function (imgs) {
+    headImg = imgs[0];
+    bodyImg = imgs[1];
+    buildSprites();   // 用真实头像重建精灵
+    state = 'ready';
+    ovTitle.textContent = '准备好了吗？';
+    ovText.innerHTML = '「白」是蛇头，「邵」是蛇身<br>吃到「邵」就会冒出粉色爱心 💗<br>方向键 / WASD 移动，手机可滑动';
+    startBtn.style.display = 'inline-block';
+    startBtn.textContent = '开始游戏';
+  });
+})();
+</script>
+</body>
+</html>

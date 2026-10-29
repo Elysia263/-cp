@@ -2,537 +2,289 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>邵白之恋 · 爱心贪吃蛇</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>邵白之恋 · 小游戏收藏馆</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    background: linear-gradient(160deg, #ffe3f1 0%, #ffd6e8 45%, #ffeef6 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    -webkit-tap-highlight-color: transparent;
-    overscroll-behavior: none;            /* 防止手机下拉刷新/橡皮筋滚动 */
-    -webkit-user-select: none;
-    user-select: none;                    /* 防止长按选中文字 */
-    -webkit-touch-callout: none;          /* 防止 iOS 长按弹出保存图片菜单 */
+  :root {
+    --pink: #ff5fa2;
+    --ink: #8a4461;
+    --line: #ffd0e3;
   }
-  .wrap {
-    background: #fff;
-    border-radius: 28px;
-    box-shadow: 0 18px 50px rgba(255, 105, 170, .25);
-    padding: 22px 24px 26px;
-    width: min(92vw, 620px);
+  body {
+    min-height: 100vh;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: linear-gradient(160deg, #fff1f8 0%, #ffe3f1 42%, #ffeef6 100%);
+    color: var(--ink);
+    padding: 40px 20px 56px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 背景漂浮爱心 */
+  .bg {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .bg i {
+    position: absolute;
+    display: block;
+    width: 18px;
+    height: 18px;
+    background: var(--pink);
+    opacity: .12;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    animation: float linear infinite;
+  }
+  @keyframes float {
+    0%   { transform: translateY(0) rotate(-45deg) scale(.7); opacity: .05; }
+    50%  { opacity: .16; }
+    100% { transform: translateY(-110vh) rotate(-45deg) scale(1.3); opacity: 0; }
+  }
+  .page { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 38px; }
+  header .kicker {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: #c988aa;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 14px;
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, .6);
   }
   h1 {
-    text-align: center;
-    color: #ff5fa2;
-    font-size: 28px;
+    font-size: clamp(26px, 5vw, 42px);
     letter-spacing: 2px;
-    margin-bottom: 14px;
+    color: var(--pink);
+    text-shadow: 0 6px 18px rgba(255, 95, 162, .22);
   }
-  .hud {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 14px;
+  h1 em { font-style: normal; color: #ff8fbe; }
+  header p {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #b0577f;
+    line-height: 1.8;
   }
-  .badge {
-    flex: 1;
-    text-align: center;
-    background: linear-gradient(135deg, #fff0f7, #ffe0ee);
-    border: 2px solid #ffc2dd;
-    border-radius: 999px;
-    padding: 8px 0;
-    color: #d63f86;
-    font-weight: 700;
-    font-size: 16px;
+  header .count {
+    margin-top: 14px;
+    font-size: 13px;
+    color: #c988aa;
   }
-  .badge span { color: #ff5fa2; font-size: 20px; margin-left: 6px; }
-  .stage {
+  header .count b { color: var(--pink); font-size: 16px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 22px;
+  }
+
+  .card {
     position: relative;
-    width: 100%;
-    aspect-ratio: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 230px;
+    padding: 22px 22px 18px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, .82);
+    border: 1px solid rgba(255, 255, 255, .9);
+    box-shadow: 0 10px 30px rgba(255, 105, 170, .14);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: transform .22s cubic-bezier(.2, .8, .3, 1), box-shadow .22s ease;
   }
-  canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    border-radius: 18px;
-    border: 5px solid #ff9ec4;
-    background: #fff3f8;
-    touch-action: none;
-  }
-  .overlay {
+  .card::before {
+    content: "";
     position: absolute;
     inset: 0;
-    border-radius: 18px;
-    background: rgba(255, 240, 247, .85);
-    backdrop-filter: blur(4px);
+    background: radial-gradient(120% 90% at 100% 0%, var(--glow) 0%, transparent 62%);
+    opacity: .55;
+    transition: opacity .22s ease;
+  }
+  .card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 40px rgba(255, 105, 170, .24);
+  }
+  .card:hover::before { opacity: .9; }
+  .card:active { transform: translateY(-2px) scale(.99); }
+
+  .card .no {
+    position: relative;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    opacity: .85;
+  }
+  .card .ico {
+    position: relative;
+    font-size: 42px;
+    line-height: 1;
+    margin: 14px 0 12px;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .12));
+  }
+  .card h2 {
+    position: relative;
+    font-size: 20px;
+    color: #4a2c3a;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .card p {
+    position: relative;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #a0708a;
+    flex: 1;
+  }
+  .card .tags {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 14px 0 16px;
+  }
+  .card .tags span {
+    font-size: 11px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--glow);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .card .go {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
-    transition: opacity .25s ease;
-  }
-  .overlay.hidden { opacity: 0; pointer-events: none; }
-  .panel { text-align: center; padding: 24px; }
-  .panel h2 { color: #ff5fa2; font-size: 30px; margin-bottom: 12px; }
-  .panel p { color: #b0577f; font-size: 15px; line-height: 1.9; margin-bottom: 20px; }
-  .panel .final { font-size: 18px; color: #d63f86; font-weight: 700; margin-bottom: 18px; }
-  button {
-    font-family: inherit;
-    font-size: 20px;
+    justify-content: space-between;
+    font-size: 14px;
     font-weight: 800;
-    color: #fff;
-    background: linear-gradient(135deg, #ff7eb6, #ff4d97);
-    border: none;
-    border-radius: 999px;
-    padding: 13px 44px;
-    cursor: pointer;
-    box-shadow: 0 8px 20px rgba(255, 77, 151, .4);
-    transition: transform .12s ease, box-shadow .12s ease;
+    color: var(--accent);
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
   }
-  button:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 26px rgba(255, 77, 151, .5); }
-  button:active { transform: scale(.96); }
-  .tip { text-align: center; color: #c988aa; font-size: 13px; margin-top: 12px; }
+  .card .go b { transition: transform .22s ease; display: inline-block; }
+  .card:hover .go b { transform: translateX(6px); }
+
+  footer {
+    margin-top: 48px;
+    text-align: center;
+    font-size: 12px;
+    color: #c9a2b6;
+    line-height: 2;
+  }
+  footer code {
+    font-family: inherit;
+    color: #b8869d;
+    background: rgba(255, 255, 255, .7);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+
+  @media (max-width: 560px) {
+    body { padding: 26px 14px 40px; }
+    .grid { gap: 16px; grid-template-columns: 1fr; }
+    .card { min-height: 0; padding: 18px 18px 16px; }
+    .card .ico { font-size: 34px; margin: 10px 0; }
+  }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>💗 邵白之恋 · 爱心贪吃蛇 💗</h1>
-    <div class="hud">
-      <div class="badge">得分<span id="score">0</span></div>
-      <div class="badge">最高<span id="best">0</span></div>
-    </div>
-    <div class="stage">
-      <canvas id="game" width="560" height="560"></canvas>
-      <div class="overlay" id="overlay">
-        <div class="panel">
-          <h2 id="ovTitle">加载中…</h2>
-          <p id="ovText">正在加载头像贴图</p>
-          <div class="final" id="ovFinal" style="display:none"></div>
-          <button id="startBtn" style="display:none">开始游戏</button>
-        </div>
-      </div>
-    </div>
-    <div class="tip">方向键 / WASD 控制移动 · 手机滑动屏幕 · 吃到「邵」就会冒出粉色爱心</div>
+  <div class="bg" id="bg"></div>
+
+  <div class="page">
+    <header>
+      <span class="kicker">SHAO &amp; BAI · GAMES</span>
+      <h1>邵白之恋 <em>·</em> 小游戏收藏馆</h1>
+      <p>每个游戏住在自己的编号房间里，从这里推门进去。</p>
+      <div class="count">共 <b id="total">0</b> 款小游戏</div>
+    </header>
+
+    <main class="grid" id="grid"></main>
+
+    <footer>
+      想加新游戏？新建 <code>NN-游戏名/index.html</code>，<br>
+      再在页面脚本的 <code>GAMES</code> 列表里添一行即可。
+    </footer>
   </div>
 
 <script>
 (function () {
   'use strict';
 
-  // ---------- 常量 ----------
-  var COLS = 20, ROWS = 20, SIZE = 560, CELL = SIZE / COLS;
-
-  var DIRS = {
-    up:    { x: 0, y: -1 },
-    down:  { x: 0, y: 1 },
-    left:  { x: -1, y: 0 },
-    right: { x: 1, y: 0 }
-  };
-
-  // 蛇头 = 白，蛇身 = 邵，食物贴图与蛇身相同（邵）
-  var HEAD_URL = '素材库/白.jpg';
-  var BODY_URL = '素材库/邵.jpg';
-
-  // ---------- DOM ----------
-  var canvas = document.getElementById('game');
-  // 高清屏适配：手机视网膜屏(DPR 2~3)下 canvas 按物理像素渲染，不模糊
-  var DPR = Math.min(window.devicePixelRatio || 1, 2.5);
-  var SPRITE_SS = Math.max(2, Math.ceil(DPR));
-  canvas.width = canvas.height = Math.round(SIZE * DPR);
-  var ctx = canvas.getContext('2d');
-  ctx.scale(DPR, DPR);   // 之后所有绘制仍使用 0..SIZE 的逻辑坐标
-  var scoreEl = document.getElementById('score');
-  var bestEl = document.getElementById('best');
-  var overlay = document.getElementById('overlay');
-  var ovTitle = document.getElementById('ovTitle');
-  var ovText = document.getElementById('ovText');
-  var ovFinal = document.getElementById('ovFinal');
-  var startBtn = document.getElementById('startBtn');
-
-  // ---------- 游戏状态 ----------
-  var snake, prevSnake, dir, dirQueue, food, score, best, state, tick, acc, last;
-  var hearts = [];
-  var headImg = null, bodyImg = null;
-  // 离屏精灵（预渲染一次，每帧只 drawImage）
-  var boardCanvas = null, headSprite = null, bodySprite = null, heartSprites = [];
-  best = parseInt(localStorage.getItem('shaobai-snake-best') || '0', 10);
-  bestEl.textContent = best;
-
-  // ---------- 图片加载（本地素材，同源加载） ----------
-  function loadImg(src) {
-    return new Promise(function (resolve) {
-      var img = new Image();
-      img.onload = function () { resolve(img); };
-      img.onerror = function () { resolve(null); };
-      img.src = src;
-    });
-  }
-
-  // ---------- 初始化 / 重开 ----------
-  function reset() {
-    snake = [ { x: 9, y: 10 }, { x: 8, y: 10 }, { x: 7, y: 10 } ];
-    prevSnake = snake.map(function (s) { return { x: s.x, y: s.y }; });
-    dir = DIRS.right;
-    dirQueue = [];
-    score = 0;
-    tick = 150;
-    acc = 0;
-    hearts = [];
-    scoreEl.textContent = '0';
-    placeFood();
-  }
-
-  function startGame() {
-    reset();
-    state = 'playing';
-    overlay.classList.add('hidden');
-  }
-
-  function gameOver() {
-    state = 'over';
-    if (score > best) {
-      best = score;
-      localStorage.setItem('shaobai-snake-best', String(best));
-      bestEl.textContent = best;
+  // ---------- 游戏清单：新增游戏只需在这里加一项 ----------
+  var GAMES = [
+    {
+      no: '01',
+      name: '爱心贪吃蛇',
+      icon: '💗',
+      desc: '吃「邵」冒粉色爱心，蛇头是「白」的圆形头像，格子间平滑滑动。',
+      tags: ['粉色恋爱风', '键盘 / 滑动', '本地最高分'],
+      path: '01-爱心贪吃蛇/index.html',
+      accent: '#ff5fa2',
+      glow: 'rgba(255, 126, 182, .22)'
+    },
+    {
+      no: '02',
+      name: '大鱼吃小鱼',
+      icon: '🐟',
+      desc: '你是一只「邵」，吃掉小水鬼慢慢长大；比自己大的水鬼会反过来吞了你。挑战 1000 分通关，或无尽模式刷分。',
+      tags: ['深海蓝调', '鼠标 / 拖动', '挑战 / 无尽'],
+      path: '02-大鱼吃小鱼/index.html',
+      accent: '#2ec8c0',
+      glow: 'rgba(46, 200, 192, .18)'
+    },
+    {
+      no: '03',
+      name: '拯救邵涵睿',
+      icon: '🛡️',
+      desc: '肉鸽生存：自动开火清怪，升级三选一。偶数波末尾会刷出精英「伤心奶」，6 波起换成「草帽奶」，不清完这波不结束。',
+      tags: ['暗红地牢风', 'WASD / 摇杆', '三选一强化'],
+      path: '03-拯救邵涵睿/index.html',
+      accent: '#ff8f6b',
+      glow: 'rgba(255, 143, 107, .18)'
     }
-    ovTitle.textContent = '游戏结束';
-    ovText.style.display = 'none';
-    ovFinal.style.display = 'block';
-    ovFinal.textContent = '本局得分：' + score + '　最高：' + best;
-    startBtn.style.display = 'inline-block';
-    startBtn.textContent = '再来一局';
-    overlay.classList.remove('hidden');
-  }
+  ];
 
-  // ---------- 食物 ----------
-  function placeFood() {
-    var empty = [];
-    for (var x = 0; x < COLS; x++) {
-      for (var y = 0; y < ROWS; y++) {
-        if (!snake.some(function (s) { return s.x === x && s.y === y; })) {
-          empty.push({ x: x, y: y });
-        }
-      }
-    }
-    food = empty[Math.floor(Math.random() * empty.length)];
-  }
+  var grid = document.getElementById('grid');
+  var totalEl = document.getElementById('total');
+  totalEl.textContent = GAMES.length;
 
-  // ---------- 方向控制 ----------
-  function queueDir(name) {
-    if (state !== 'playing') return;
-    var nd = DIRS[name];
-    var lastQueued = dirQueue.length ? dirQueue[dirQueue.length - 1] : dir;
-    if (nd.x === -lastQueued.x && nd.y === -lastQueued.y) return; // 禁止 180° 掉头
-    if (nd.x === lastQueued.x && nd.y === lastQueued.y) return;
-    if (dirQueue.length < 3) dirQueue.push(nd);
-  }
-
-  var KEYMAP = {
-    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
-  };
-  document.addEventListener('keydown', function (e) {
-    if (KEYMAP[e.code]) {
-      e.preventDefault();
-      if (state === 'ready') startGame();
-      queueDir(KEYMAP[e.code]);
-    } else if ((e.code === 'Space' || e.code === 'Enter') && (state === 'ready' || state === 'over')) {
-      e.preventDefault();
-      startGame();
-    }
+  var frag = document.createDocumentFragment();
+  GAMES.forEach(function (g) {
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = g.path;
+    a.style.setProperty('--accent', g.accent);
+    a.style.setProperty('--glow', g.glow);
+    a.innerHTML =
+      '<span class="no">NO. ' + g.no + '</span>' +
+      '<span class="ico">' + g.icon + '</span>' +
+      '<h2>' + g.name + '</h2>' +
+      '<p>' + g.desc + '</p>' +
+      '<span class="tags">' + g.tags.map(function (t) { return '<span>' + t + '</span>'; }).join('') + '</span>' +
+      '<span class="go">进入游戏 <b>→</b></span>';
+    frag.appendChild(a);
   });
+  grid.appendChild(frag);
 
-  // 触屏滑动
-  var touchStart = null;
-  canvas.addEventListener('touchstart', function (e) {
-    var t = e.touches[0];
-    touchStart = { x: t.clientX, y: t.clientY };
-  }, { passive: true });
-  canvas.addEventListener('touchend', function (e) {
-    if (!touchStart) return;
-    var t = e.changedTouches[0];
-    var dx = t.clientX - touchStart.x;
-    var dy = t.clientY - touchStart.y;
-    touchStart = null;
-    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
-    if (Math.abs(dx) > Math.abs(dy)) queueDir(dx > 0 ? 'right' : 'left');
-    else queueDir(dy > 0 ? 'down' : 'up');
-  }, { passive: true });
-
-  startBtn.addEventListener('click', startGame);
-
-  // ---------- 粉色爱心粒子 ----------
-  var HEART_COLORS = ['#ff4d97', '#ff7eb6', '#ff9ecb', '#ff5fa2'];
-  var HEART_S = 24;   // 爱心精灵中烘焙的心形尺寸
-  var HEART_BOX = 64; // 爱心精灵画布边长
-
-  function spawnHearts(cx, cy) {
-    for (var i = 0; i < 22; i++) {
-      hearts.push({
-        x: cx + (Math.random() - 0.5) * CELL * 1.2,
-        y: cy + (Math.random() - 0.5) * CELL * 0.6,
-        vx: (Math.random() - 0.5) * 2.4,
-        vy: -1.0 - Math.random() * 2.4,
-        size: 9 + Math.random() * 13,
-        life: 1,
-        decay: 0.010 + Math.random() * 0.012,
-        rot: (Math.random() - 0.5) * 0.9,
-        vr: (Math.random() - 0.5) * 0.07,
-        ci: Math.floor(Math.random() * HEART_COLORS.length)
-      });
-    }
+  // ---------- 背景漂浮爱心 ----------
+  var bg = document.getElementById('bg');
+  for (var i = 0; i < 14; i++) {
+    var h = document.createElement('i');
+    var size = 10 + Math.random() * 22;
+    h.style.width = h.style.height = size + 'px';
+    h.style.left = Math.random() * 100 + '%';
+    h.style.top = (60 + Math.random() * 60) + 'vh';
+    h.style.animationDuration = (14 + Math.random() * 16) + 's';
+    h.style.animationDelay = '-' + (Math.random() * 20) + 's';
+    bg.appendChild(h);
   }
-
-  // 按帧间隔归一化更新，60Hz / 144Hz / 165Hz 屏幕下速度一致
-  function updateHearts(dt) {
-    var f = dt / 16.7;
-    for (var i = hearts.length - 1; i >= 0; i--) {
-      var h = hearts[i];
-      h.x += h.vx * f;
-      h.y += h.vy * f;
-      h.vy += 0.045 * f;   // 轻微重力：爱心先向上飘起再缓缓落下
-      h.vx *= Math.pow(0.98, f);
-      h.rot += h.vr * f;
-      h.life -= h.decay * f;
-      if (h.life <= 0) hearts.splice(i, 1);
-    }
-  }
-
-  function heartPath(c, s) {
-    c.beginPath();
-    c.moveTo(0, s * 0.28);
-    c.bezierCurveTo(0, s * 0.06, -s * 0.52, -s * 0.16, -s * 0.52, s * 0.26);
-    c.bezierCurveTo(-s * 0.52, s * 0.58, -s * 0.08, s * 0.78, 0, s);
-    c.bezierCurveTo(s * 0.08, s * 0.78, s * 0.52, s * 0.58, s * 0.52, s * 0.26);
-    c.bezierCurveTo(s * 0.52, -s * 0.16, 0, s * 0.06, 0, s * 0.28);
-    c.closePath();
-  }
-
-  // 爱心贝塞尔路径只构建一次，烘焙成离屏精灵
-  function makeHeartSprite(color) {
-    var SS = SPRITE_SS;
-    var c = document.createElement('canvas');
-    c.width = c.height = HEART_BOX * SS;
-    var g = c.getContext('2d');
-    g.scale(SS, SS);
-    g.translate(HEART_BOX / 2, HEART_BOX / 2 - HEART_S * 0.42);
-    heartPath(g, HEART_S);
-    g.fillStyle = color;
-    g.fill();
-    g.fillStyle = 'rgba(255,255,255,.7)';
-    g.beginPath();
-    g.arc(-HEART_S * 0.18, HEART_S * 0.2, HEART_S * 0.08, 0, Math.PI * 2);
-    g.fill();
-    return c;
-  }
-
-  function drawHearts() {
-    for (var i = 0; i < hearts.length; i++) {
-      var h = hearts[i];
-      var box = HEART_BOX * (h.size / HEART_S);
-      ctx.save();
-      ctx.translate(h.x, h.y);
-      ctx.rotate(h.rot);
-      ctx.globalAlpha = Math.max(0, Math.min(1, h.life));
-      ctx.drawImage(heartSprites[h.ci], -box / 2, -box / 2, box, box);
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // ---------- 游戏逻辑 ----------
-  function step() {
-    if (dirQueue.length) dir = dirQueue.shift();
-    var head = snake[0];
-    var nx = head.x + dir.x;
-    var ny = head.y + dir.y;
-
-    // 撞墙：传统规则，游戏结束
-    if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) {
-      gameOver();
-      return;
-    }
-
-    var eating = (nx === food.x && ny === food.y);
-    // 没吃到食物时尾巴会移走，最后一节不算碰撞
-    var bodyToCheck = eating ? snake : snake.slice(0, -1);
-    var hitSelf = bodyToCheck.some(function (s) { return s.x === nx && s.y === ny; });
-    if (hitSelf) {
-      gameOver();
-      return;
-    }
-
-    snake.unshift({ x: nx, y: ny });
-    if (eating) {
-      score++;
-      scoreEl.textContent = score;
-      tick = Math.max(75, 150 - score * 3);   // 越吃越快
-      // 蛇头接触食物：粉色爱心特效！
-      spawnHearts((nx + 0.5) * CELL, (ny + 0.5) * CELL);
-      placeFood();
-    } else {
-      snake.pop();
-    }
-  }
-
-  // ---------- 离屏精灵预渲染 ----------
-  // 棋盘格只画一次，之后每帧一张 drawImage
-  function makeBoard() {
-    var c = document.createElement('canvas');
-    c.width = c.height = SIZE * SPRITE_SS;
-    var g = c.getContext('2d');
-    g.scale(SPRITE_SS, SPRITE_SS);
-    for (var x = 0; x < COLS; x++) {
-      for (var y = 0; y < ROWS; y++) {
-        g.fillStyle = (x + y) % 2 === 0 ? '#ffeef6' : '#ffe4f0';
-        g.fillRect(x * CELL, y * CELL, CELL, CELL);
-      }
-    }
-    return c;
-  }
-
-  // 圆形头像精灵：红底证件照裁剪为圆形 + 白边 + 柔和阴影，2 倍超采样烘焙
-  function makeAvatarSprite(img, r, ringW, fallbackChar, fallbackColor) {
-    var SS = SPRITE_SS;
-    var pad = ringW + 7;          // 留出白边和阴影的余量
-    var half = r + pad;
-    var c = document.createElement('canvas');
-    c.width = c.height = Math.ceil(half * 2 * SS);
-    var g = c.getContext('2d');
-    g.scale(SS, SS);
-    var cx = half, cy = half;
-    g.beginPath();
-    g.arc(cx, cy + 2.5, r, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(214, 63, 134, .18)';
-    g.fill();
-    g.save();
-    g.beginPath();
-    g.arc(cx, cy, r, 0, Math.PI * 2);
-    g.clip();
-    if (img) {
-      // cover 方式填满圆
-      var s = Math.max((2 * r) / img.width, (2 * r) / img.height);
-      var w = img.width * s, h = img.height * s;
-      g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
-    } else {
-      g.fillStyle = fallbackColor;
-      g.fillRect(cx - r, cy - r, r * 2, r * 2);
-      g.fillStyle = '#fff';
-      g.font = 'bold ' + Math.round(r * 1.2) + 'px sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(fallbackChar, cx, cy + 1);
-    }
-    g.restore();
-    g.lineWidth = ringW;
-    g.strokeStyle = '#ffffff';
-    g.beginPath();
-    g.arc(cx, cy, r - ringW / 2 + 0.5, 0, Math.PI * 2);
-    g.stroke();
-    return { canvas: c, half: half, r: r };
-  }
-
-  function drawSprite(sp, cx, cy, r) {
-    var k = r / sp.r;
-    var h = sp.half * k;
-    ctx.drawImage(sp.canvas, cx - h, cy - h, h * 2, h * 2);
-  }
-
-  function buildSprites() {
-    headSprite = makeAvatarSprite(headImg, CELL * 0.48, 3, '白', '#7ec8ff');
-    bodySprite = makeAvatarSprite(bodyImg, CELL * 0.45, 2, '邵', '#ff8fb8');
-  }
-
-  // ---------- 渲染 ----------
-  function drawFood(t) {
-    var cx = (food.x + 0.5) * CELL;
-    var cy = (food.y + 0.5) * CELL;
-    var r = CELL * 0.42;
-    // 粉色脉动光环，和蛇身区分
-    var pulse = 1 + Math.sin(t / 200) * 0.12;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.45 * pulse, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 95, 162, ' + (0.55 - (pulse - 1) * 2) + ')';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 158, 196, .5)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    drawSprite(bodySprite, cx, cy, r);
-  }
-
-  // p = 0..1：本格移动的插值进度，蛇身在格子间平滑滑动
-  function drawSnake(p) {
-    var pos = [];
-    for (var i = 0; i < snake.length; i++) {
-      var cur = snake[i];
-      var pv = prevSnake[Math.min(i, prevSnake.length - 1)] || cur;
-      pos.push({
-        x: (pv.x + (cur.x - pv.x) * p + 0.5) * CELL,
-        y: (pv.y + (cur.y - pv.y) * p + 0.5) * CELL
-      });
-    }
-    // 从尾巴画到头，头在最上层
-    for (var j = pos.length - 1; j >= 1; j--) {
-      drawSprite(bodySprite, pos[j].x, pos[j].y, CELL * 0.40);
-    }
-    drawSprite(headSprite, pos[0].x, pos[0].y, CELL * 0.48);
-  }
-
-  function render(t, p) {
-    ctx.drawImage(boardCanvas, 0, 0, SIZE, SIZE);
-    drawFood(t);
-    drawSnake(p);
-    drawHearts();
-  }
-
-  // ---------- 主循环（固定调用顺序：更新特效→逻辑→渲染） ----------
-  function frame(t) {
-    requestAnimationFrame(frame);
-    if (!last) last = t;
-    var dt = t - last;
-    last = t;
-    if (dt > 100) dt = 100;   // 切后台回来时钳制帧间隔，避免逻辑追帧螺旋
-    if (state === 'playing') {
-      acc += dt;
-      while (acc >= tick) {
-        acc -= tick;
-        prevSnake = snake.map(function (s) { return { x: s.x, y: s.y }; });
-        step();
-        if (state !== 'playing') { acc = 0; break; }
-      }
-    }
-    updateHearts(dt);
-    var p = state === 'playing' ? acc / tick : 1;
-    if (p < 0) p = 0; else if (p > 1) p = 1;
-    render(t, p);
-  }
-
-  // ---------- 启动：先初始化数据再开循环，避免首帧渲染空对象 ----------
-  state = 'loading';
-  boardCanvas = makeBoard();
-  heartSprites = HEART_COLORS.map(makeHeartSprite);
-  buildSprites();   // 图片未就绪时先用占位字精灵，加载完成后重建
-  reset();
-  requestAnimationFrame(frame);
-  Promise.all([loadImg(HEAD_URL), loadImg(BODY_URL)]).then(function (imgs) {
-    headImg = imgs[0];
-    bodyImg = imgs[1];
-    buildSprites();   // 用真实头像重建精灵
-    state = 'ready';
-    ovTitle.textContent = '准备好了吗？';
-    ovText.innerHTML = '「白」是蛇头，「邵」是蛇身<br>吃到「邵」就会冒出粉色爱心 💗<br>方向键 / WASD 移动，手机可滑动';
-    startBtn.style.display = 'inline-block';
-    startBtn.textContent = '开始游戏';
-  });
 })();
 </script>
 </body>

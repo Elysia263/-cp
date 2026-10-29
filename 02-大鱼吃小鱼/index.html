@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>大鱼吃小鱼 · 邵白之恋小游戏</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #02131f;
+    color: #d8f4f6;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior: none;
+    touch-action: none;
+  }
+  #c { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+
+  .back {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 30;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(6, 40, 56, .62);
+    border: 1px solid rgba(120, 226, 232, .28);
+    color: #b8eef2;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+  }
+  .back:hover { background: rgba(24, 130, 148, .6); color: #eaffff; }
+
+  .hud {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 20;
+    display: flex;
+    gap: 10px;
+  }
+  .chip {
+    min-width: 62px;
+    padding: 7px 10px;
+    border-radius: 14px;
+    text-align: center;
+    background: rgba(6, 40, 56, .52);
+    border: 1px solid rgba(120, 226, 232, .22);
+    backdrop-filter: blur(8px);
+  }
+  .chip label { display: block; font-size: 10px; letter-spacing: 2px; color: #6fb6c2; }
+  .chip b { font-size: 19px; color: #7ff0e4; font-variant-numeric: tabular-nums; }
+  .chip.best b { color: #ffd76a; }
+
+  /* 通关进度条 */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    z-index: 26;
+    background: rgba(6, 40, 56, .55);
+    overflow: hidden;
+  }
+  .progress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #3fd0c4, #ffd76a);
+    box-shadow: 0 0 14px rgba(255, 215, 106, .7);
+    transition: width .28s ease;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: radial-gradient(120% 100% at 50% 40%, rgba(2, 26, 38, .72), rgba(1, 12, 20, .9));
+    backdrop-filter: blur(3px);
+    transition: opacity .3s ease;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .panel {
+    width: min(92vw, 460px);
+    text-align: center;
+    padding: 30px 26px 28px;
+    border-radius: 26px;
+    background: linear-gradient(165deg, rgba(10, 62, 82, .92), rgba(4, 30, 44, .92));
+    border: 1px solid rgba(120, 226, 232, .26);
+    box-shadow: 0 26px 70px rgba(0, 0, 0, .55), inset 0 0 60px rgba(80, 220, 220, .06);
+  }
+  .panel .kicker {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #62c5d2;
+    margin-bottom: 14px;
+  }
+  .panel h1 {
+    font-size: clamp(26px, 7vw, 34px);
+    letter-spacing: 2px;
+    color: #8df3e6;
+    text-shadow: 0 0 22px rgba(90, 240, 220, .35);
+  }
+  .panel .sub {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6fa9b6;
+    letter-spacing: 1px;
+  }
+  .panel p {
+    margin-top: 18px;
+    font-size: 14px;
+    line-height: 2;
+    color: #a9d6de;
+  }
+  .panel p strong { color: #ffd76a; font-weight: 700; }
+  .panel p em { color: #7ff0e4; font-style: normal; }
+  .panel .final {
+    margin-top: 20px;
+    font-size: 15px;
+    color: #cfeff4;
+    line-height: 1.9;
+  }
+  .panel .final b { color: #ffd76a; font-size: 24px; }
+  .panel button {
+    margin-top: 22px;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #02222c;
+    background: linear-gradient(135deg, #9bf3e3, #3fd0c4);
+    border: none;
+    border-radius: 999px;
+    padding: 13px 40px;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(63, 208, 196, .35);
+    transition: transform .12s ease;
+  }
+  .panel button:hover { transform: translateY(-2px); }
+  .panel button:active { transform: scale(.96); }
+
+  .modes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .modes button { margin-top: 0; padding: 12px 26px; }
+  .modes .ghost {
+    background: transparent;
+    border: 1px solid rgba(120, 226, 232, .45);
+    color: #8df3e6;
+    box-shadow: none;
+  }
+  .modes .ghost:hover { background: rgba(63, 208, 196, .14); }
+
+  .tip {
+    position: fixed;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(160, 212, 220, .55);
+    letter-spacing: 1px;
+    pointer-events: none;
+    transition: opacity .3s ease;
+  }
+  .tip.hide { opacity: 0; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="progress"><i id="prog"></i></div>
+
+  <a class="back" href="../index.html">← 返回大厅</a>
+
+  <div class="hud">
+    <div class="chip"><label>模式</label><b id="mtag">挑战</b></div>
+    <div class="chip"><label>得分</label><b id="score">0</b></div>
+    <div class="chip"><label>体型</label><b id="size">28</b></div>
+    <div class="chip best"><label>最高</label><b id="best">0</b></div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <span class="kicker">NO. 02 · 深海捕食</span>
+      <h1 id="ovTitle">大鱼吃小鱼</h1>
+      <div class="sub" id="ovSub">SHAO / WATER GHOST</div>
+      <p id="ovText">你操纵的是<strong>「邵」</strong>，长大的同时水鬼也会变大。<br>吃得比自己小的水鬼长大，被更大的水鬼碰到就结束。<br>两种模式：<strong>挑战</strong>攒够 1000 分通关；<strong>无尽</strong>分数没有上限。</p>
+      <div class="final" id="ovFinal" style="display:none"></div>
+      <div class="modes">
+        <button id="btnChallenge">挑战 1000 分</button>
+        <button id="btnEndless" class="ghost">无尽模式</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip" id="tip">移动鼠标 / 手指拖动，让鱼跟着你游</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var PI2 = Math.PI * 2;
+
+  // ---------- 画布 ----------
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+  var bgCanvas = null;
+
+  var scoreEl = document.getElementById('score');
+  var sizeEl = document.getElementById('size');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovSub = document.getElementById('ovSub');
+  var ovText = document.getElementById('ovText');
+  var ovFinal = document.getElementById('ovFinal');
+  var btnChallenge = document.getElementById('btnChallenge');
+  var btnEndless = document.getElementById('btnEndless');
+  var tipEl = document.getElementById('tip');
+  var mtagEl = document.getElementById('mtag');
+  var progWrap = document.querySelector('.progress');
+
+  var best = parseInt(localStorage.getItem('sbfish-best') || '0', 10);
+  bestEl.textContent = best;
+
+  var GOAL = 1000;                 // 挑战模式通关分数
+  var progEl = document.getElementById('prog');
+  var mode = 'challenge';          // challenge 挑战 | endless 无尽
+  var bestKey = 'sbfish-best';
+
+  // ---------- 状态 ----------
+  var state = 'ready';           // ready | playing | over
+  var player, fishes = [], bubbles = [], sparks = [];
+  var elapsed = 0, spawnTimer = 0, last = 0;
+  var pointer = { x: 0, y: 0, active: false };
+
+  // 素材
+  var faceShao = null, faceGhost = null;
+  var IMG_SHAO = '素材库/邵.jpg';
+  var IMG_GHOST = '素材库/水鬼.jpg';
+
+  // ---------- 图片与精灵 ----------
+  function loadImg(src) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { resolve(null); };
+      img.src = src;
+    });
+  }
+
+  var SS = 2;
+  var SPR_BOX = 320, SPR_R = 128;
+
+  function makeFace(img, fallbackChar, ringColor, fallbackBg) {
+    var c = document.createElement('canvas');
+    c.width = c.height = SPR_BOX * SS;
+    var g = c.getContext('2d');
+    g.scale(SS, SS);
+    var cx = SPR_BOX / 2, cy = SPR_BOX / 2;
+
+    // 底部阴影，让鱼有浮在深水里的感觉
+    g.beginPath();
+    g.arc(cx, cy + 5, SPR_R, 0, PI2);
+    g.fillStyle = 'rgba(0, 20, 30, .35)';
+    g.fill();
+
+    g.save();
+    g.beginPath();
+    g.arc(cx, cy, SPR_R, 0, PI2);
+    g.clip();
+    if (img) {
+      var s = Math.max(SPR_R * 2 / img.width, SPR_R * 2 / img.height);
+      var w = img.width * s, h = img.height * s;
+      g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+    } else {
+      g.fillStyle = fallbackBg;
+      g.fillRect(cx - SPR_R, cy - SPR_R, SPR_R * 2, SPR_R * 2);
+      g.fillStyle = '#fff';
+      g.font = 'bold ' + Math.round(SPR_R * 1.1) + 'px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(fallbackChar, cx, cy + 1);
+    }
+    g.restore();
+
+    // 白圈 + 彩色描边
+    g.lineWidth = 12;
+    g.strokeStyle = 'rgba(255, 255, 255, .9)';
+    g.beginPath();
+    g.arc(cx, cy, SPR_R - 6, 0, PI2);
+    g.stroke();
+    g.lineWidth = 4;
+    g.strokeStyle = ringColor;
+    g.beginPath();
+    g.arc(cx, cy, SPR_R + 1, 0, PI2);
+    g.stroke();
+
+    return c;
+  }
+
+  function drawSprite(sprite, x, y, r) {
+    var box = (r / SPR_R) * SPR_BOX;
+    ctx.drawImage(sprite, x - box / 2, y - box / 2, box, box);
+  }
+
+  // ---------- 背景（海底光带，只在尺寸变化时重绘） ----------
+  function bakeBackground() {
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = Math.round(W * DPR);
+    bgCanvas.height = Math.round(H * DPR);
+    var g = bgCanvas.getContext('2d');
+    g.scale(DPR, DPR);
+
+    var grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#0e6f86');
+    grad.addColorStop(.32, '#085468');
+    grad.addColorStop(.72, '#032b3d');
+    grad.addColorStop(1, '#010f19');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+
+    var glow = g.createRadialGradient(W * .5, -H * .12, 10, W * .5, -H * .12, H * .95);
+    glow.addColorStop(0, 'rgba(150, 240, 255, .34)');
+    glow.addColorStop(1, 'rgba(150, 240, 255, 0)');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, W, H);
+
+    // 斜向光柱
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < 6; i++) {
+      var x0 = W * (0.08 + i * 0.17);
+      var wTop = 34 + i * 9;
+      var wBot = wTop * 3.2;
+      var lg = g.createLinearGradient(x0, 0, x0 - wBot * .4, H * .92);
+      lg.addColorStop(0, 'rgba(180, 250, 255, .16)');
+      lg.addColorStop(.6, 'rgba(150, 230, 255, .05)');
+      lg.addColorStop(1, 'rgba(150, 230, 255, 0)');
+      g.fillStyle = lg;
+      g.beginPath();
+      g.moveTo(x0 - wTop / 2, 0);
+      g.lineTo(x0 + wTop / 2, 0);
+      g.lineTo(x0 + wBot, H * .92);
+      g.lineTo(x0 - wBot * 0.2, H * .92);
+      g.closePath();
+      g.fill();
+    }
+    g.restore();
+
+    // 四周压暗
+    var vig = g.createRadialGradient(W * .5, H * .45, Math.min(W, H) * .35, W * .5, H * .5, Math.max(W, H) * .78);
+    vig.addColorStop(0, 'rgba(0, 12, 20, 0)');
+    vig.addColorStop(1, 'rgba(0, 8, 14, .78)');
+    g.fillStyle = vig;
+    g.fillRect(0, 0, W, H);
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bakeBackground();
+    if (player) {
+      player.x = Math.min(Math.max(player.x, player.r), W - player.r);
+      player.y = Math.min(Math.max(player.y, player.r), H - player.r);
+    }
+  }
+
+  // ---------- 初始化一局 ----------
+  function reset(modeSel) {
+    mode = modeSel === 'endless' ? 'endless' : 'challenge';
+    bestKey = mode === 'endless' ? 'sbfish-best-endless' : 'sbfish-best';
+    best = parseInt(localStorage.getItem(bestKey) || '0', 10);
+    bestEl.textContent = best;
+    mtagEl.textContent = mode === 'endless' ? '无尽' : '挑战';
+    progWrap.style.display = mode === 'endless' ? 'none' : 'block';
+
+    player = {
+      x: W / 2, y: H / 2,
+      vx: 0, vy: 0,
+      r: 28,
+      ang: 0,
+      phase: Math.random() * PI2,
+      sprite: faceShao
+    };
+    fishes = [];
+    sparks = [];
+    elapsed = 0;
+    spawnTimer = 300;
+    score = 0;
+    scoreEl.textContent = '0';
+    sizeEl.textContent = '28';
+    progEl.style.width = '0%';
+    bubbles = [];
+    for (var i = 0; i < 34; i++) {
+      bubbles.push(newBubble(true));
+    }
+    pointer.active = false;
+  }
+
+  var score = 0;
+
+  function newBubble(anywhere) {
+    return {
+      x: Math.random() * W,
+      y: anywhere ? Math.random() * H : H + 10,
+      r: 1.2 + Math.random() * 4.2,
+      vy: 12 + Math.random() * 34,
+      wob: Math.random() * PI2,
+      alpha: .18 + Math.random() * .38
+    };
+  }
+
+  // ---------- 刷鱼 ----------
+  // 大鱼比例：开局很低，随分数和时间缓慢提高（0.13 → 约 0.4）
+  function bigChance() {
+    var prog = mode === 'challenge'
+      ? Math.min(1, score / GOAL)
+      : Math.min(1, score / 1500);      // 无尽模式：难度上限拉得更远
+    var time = Math.min(1, elapsed / 100);
+    return Math.min(0.4, 0.13 + prog * 0.17 + time * 0.08);
+  }
+
+  function spawnFish() {
+    var fromLeft = Math.random() < 0.5;
+
+    // 场上大鱼不超过 4 条，避免前期被围死
+    var bigOn = 0;
+    for (var i = 0; i < fishes.length; i++) {
+      if (fishes[i].r > player.r * 1.06) bigOn++;
+    }
+
+    var wantBig = Math.random() < bigChance() && bigOn < 4;
+
+    // 体型始终跟主控体型成比例：小鱼 0.34~0.96 倍，大鱼 1.12~1.67 倍
+    var ratio = wantBig
+      ? 1.12 + Math.random() * 0.55
+      : 0.34 + Math.random() * 0.62;
+
+    var r = Math.max(11, Math.min(104, player.r * ratio));
+
+    var speed = Math.max(56, 200 - r * 1.15) + Math.random() * 40;
+    var y = 70 + Math.random() * Math.max(60, H - 140);
+
+    fishes.push({
+      x: fromLeft ? -r * 2.4 : W + r * 2.4,
+      y: y,
+      r: r,
+      vx: fromLeft ? speed : -speed,
+      vy: (Math.random() - .5) * 22,
+      baseY: y,
+      amp: 10 + Math.random() * 36,
+      phase: Math.random() * PI2,
+      wob: 1.1 + Math.random() * 1.2,
+      ang: fromLeft ? 0 : Math.PI,
+      eatable: false      // 每帧按体型重算
+    });
+  }
+
+  function updateSpawn(dt) {
+    spawnTimer -= dt * 1000;
+    if (spawnTimer > 0) return;
+    var interval = Math.max(340, 880 - elapsed * 34);
+    spawnTimer = interval * (0.72 + Math.random() * 0.6);
+    if (fishes.length < 16) spawnFish();
+  }
+
+  // ---------- 粒子 ----------
+  function burst(x, y, color, n) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * PI2;
+      var sp = 40 + Math.random() * 150;
+      sparks.push({
+        x: x, y: y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 30,
+        r: 2 + Math.random() * 5,
+        life: 1,
+        decay: .02 + Math.random() * .03,
+        color: color
+      });
+    }
+  }
+
+  // ---------- 交互 ----------
+  function setPointer(x, y) {
+    pointer.x = x;
+    pointer.y = y;
+    pointer.active = true;
+  }
+  canvas.addEventListener('mousemove', function (e) { setPointer(e.clientX, e.clientY); });
+  canvas.addEventListener('touchstart', function (e) {
+    var t = e.touches[0];
+    setPointer(t.clientX, t.clientY);
+  }, { passive: true });
+  canvas.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    var t = e.touches[0];
+    setPointer(t.clientX, t.clientY);
+  }, { passive: false });
+
+  // ---------- 逻辑 ----------
+  function updatePlayer(dt) {
+    var p = player;
+    var maxSpeed = Math.max(220, 420 - p.r * 1.5);
+
+    if (pointer.active) {
+      var dx = pointer.x - p.x;
+      var dy = pointer.y - p.y;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 0.8) {
+        var nx = dx / d, ny = dy / d;
+        // 只在贴近指针时轻降速防抖，其余全程全速：去掉二次插值，手指停哪鱼就到哪
+        var speed = maxSpeed * (d < 26 ? d / 26 : 1);
+        var step = Math.min(d, speed * dt);
+        p.x += nx * step;
+        p.y += ny * step;
+        p.vx = nx * speed;
+        p.vy = ny * speed;
+      } else {
+        p.vx *= 0.82;
+        p.vy *= 0.82;
+      }
+    } else {
+      var drag = Math.pow(0.9, dt * 60 / 16.7);
+      p.vx *= drag;
+      p.vy *= drag;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+
+    // 软边界
+    var m = p.r * 0.45;
+    if (p.x < m) { p.x = m; if (p.vx < 0) p.vx *= -0.4; }
+    if (p.x > W - m) { p.x = W - m; if (p.vx > 0) p.vx *= -0.4; }
+    if (p.y < m) { p.y = m; if (p.vy < 0) p.vy *= -0.4; }
+    if (p.y > H - m) { p.y = H - m; if (p.vy > 0) p.vy *= -0.4; }
+
+    // 尾鳍朝向平滑过渡，避免急转时尾巴瞬间翻转
+    var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (sp > 6) {
+      var ta = Math.atan2(p.vy, p.vx);
+      var da = ta - p.ang;
+      while (da > Math.PI) da -= PI2;
+      while (da < -Math.PI) da += PI2;
+      p.ang += da * Math.min(1, dt * 18);
+    }
+  }
+
+  function updateFishes(dt) {
+    for (var i = fishes.length - 1; i >= 0; i--) {
+      var f = fishes[i];
+
+      // 大鱼会盯住玩家，小鱼只顾自己横游
+      if (f.r > player.r * 1.05 && f.r < player.r * 2.4) {
+        var ch = Math.min(1, dt * 1.1);
+        f.vy += ((player.y - f.baseY) / Math.max(H * .3, 1)) * 26 * ch;
+        if (f.vy > 52) f.vy = 52;
+        if (f.vy < -52) f.vy = -52;
+      } else {
+        f.vy *= Math.pow(0.96, dt * 60 / 16.7);
+      }
+
+      f.phase += f.wob * dt;
+      f.baseY += f.vy * dt;
+      f.x += f.vx * dt;
+      f.y = f.baseY + Math.sin(f.phase) * f.amp;
+      f.ang = f.vx > 0 ? 0 : Math.PI;
+
+      // 出界回收
+      var pad = f.r * 3;
+      if (f.x < -pad || f.x > W + pad || f.y < -pad || f.y > H + pad) {
+        fishes.splice(i, 1);
+        continue;
+      }
+
+      // 碰撞判定：大鱼吃小鱼
+      var dx = f.x - player.x;
+      var dy = f.y - player.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < player.r * 0.86 + f.r * 0.8) {
+        if (player.r > f.r * 1.06) {
+          eat(f, i);
+          if (state !== 'playing') return;
+        } else if (f.r > player.r * 1.06) {
+          die(f);
+          return;
+        }
+      }
+    }
+  }
+
+  function eat(f, index) {
+    // 分值与鱼体型挂钩：鱼越大越值钱
+    var gain = Math.round(f.r) + 2;
+    score += gain;
+    scoreEl.textContent = score;
+    progEl.style.width = Math.min(100, score / GOAL * 100) + '%';
+
+    if (score > best) {
+      best = score;
+      localStorage.setItem(bestKey, String(best));
+      bestEl.textContent = best;
+    }
+
+    player.r = Math.min(88, player.r + 2 + f.r * 0.03);
+    sizeEl.textContent = Math.round(player.r);
+
+    burst(f.x, f.y, 'rgba(127, 240, 228,', 12);
+    fishes.splice(index, 1);
+
+    if (mode === 'challenge' && score >= GOAL) clearGame();
+  }
+
+  function die(f) {
+    burst(player.x, player.y, 'rgba(255, 120, 110,', 26);
+    burst(f.x, f.y, 'rgba(255, 200, 120,', 10);
+    gameOver(f);
+  }
+
+  function gameOver(killer) {
+    state = 'over';
+    ovTitle.textContent = '被吃掉了';
+    ovSub.textContent = mode === 'endless' ? 'ENDLESS · GAME OVER' : 'GAME OVER';
+    ovText.style.display = 'none';
+    ovFinal.style.display = 'block';
+    ovFinal.innerHTML = '本局得分 <b>' + score + '</b><br>最高 ' + best + ' · 体型 ' + Math.round(player.r) +
+      (mode === 'endless'
+        ? ' · 坚持 ' + Math.round(elapsed) + ' 秒'
+        : ' · 还差 ' + Math.max(0, GOAL - score) + ' 分通关');
+    overlay.classList.remove('hidden');
+    tipEl.classList.add('hide');
+  }
+
+  function clearGame() {
+    state = 'clear';
+    burst(player.x, player.y, 'rgba(255, 215, 106,', 40);
+    ovTitle.textContent = '通关！';
+    ovSub.textContent = '1000 / 1000 · CLEAR';
+    ovText.style.display = 'none';
+    ovFinal.style.display = 'block';
+    ovFinal.innerHTML = '达成 <b>1000</b> 分 · 用时 ' + Math.round(elapsed) + ' 秒<br>最高 ' + best + ' · 体型 ' + Math.round(player.r);
+    overlay.classList.remove('hidden');
+    tipEl.classList.add('hide');
+  }
+
+  function startGame(modeSel) {
+    reset(modeSel);
+    state = 'playing';
+    overlay.classList.add('hidden');
+    tipEl.classList.remove('hide');
+    pointer.x = W / 2;
+    pointer.y = H / 2;
+    pointer.active = true;
+    setTimeout(function () { if (state === 'playing') tipEl.classList.add('hide'); }, 4200);
+  }
+
+  btnChallenge.addEventListener('click', function () { startGame('challenge'); });
+  btnEndless.addEventListener('click', function () { startGame('endless'); });
+
+  // ---------- 绘制 ----------
+  function drawTail(x, y, r, ang, phase, t, color, danger) {
+    var back = ang + Math.PI;
+    var wig = Math.sin(t * 0.006 + phase) * 0.42;
+    var spread = 0.5;
+    var a1 = back - spread;
+    var a2 = back + spread;
+    var bx = x + Math.cos(back) * r * 0.68;
+    var by = y + Math.sin(back) * r * 0.68;
+    var tipA = back + wig;
+    var tipX = x + Math.cos(tipA) * r * 1.85;
+    var tipY = y + Math.sin(tipA) * r * 1.85;
+
+    ctx.save();
+    var grad = ctx.createLinearGradient(x, y, tipX, tipY);
+    grad.addColorStop(0, color + '0.85)');
+    grad.addColorStop(1, color + '0.25)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(a1) * r * 0.72, y + Math.sin(a1) * r * 0.72);
+    ctx.quadraticCurveTo(tipX + Math.cos(a2) * r * .1, tipY + Math.sin(a2) * r * .1, x + Math.cos(a2) * r * 0.72, y + Math.sin(a2) * r * 0.72);
+    ctx.quadraticCurveTo(bx, by, x + Math.cos(a1) * r * 0.72, y + Math.sin(a1) * r * 0.72);
+    ctx.closePath();
+    ctx.fill();
+
+    // 背鳍
+    ctx.fillStyle = color + '0.55)';
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.16, y - r * 0.92);
+    ctx.quadraticCurveTo(x + r * 0.1, y - r * 1.42, x + r * 0.42, y - r * 0.86);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    if (danger) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 92, 84, ' + (0.42 + Math.sin(t * 0.007) * 0.22) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.16, 0, PI2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawFish(f, sprite, color, t) {
+    drawTail(f.x, f.y, f.r, f.ang, f.phase, t, color, f.r > player.r * 1.06);
+    drawSprite(sprite, f.x, f.y, f.r);
+  }
+
+  function drawBubbles(dt) {
+    for (var i = 0; i < bubbles.length; i++) {
+      var b = bubbles[i];
+      b.y -= b.vy * dt;
+      b.x += Math.sin(b.y * 0.02 + b.wob) * 0.6;
+      if (b.y < -10) {
+        bubbles[i] = newBubble(false);
+        continue;
+      }
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, PI2);
+      ctx.fillStyle = 'rgba(190, 245, 255, ' + b.alpha * .5 + ')';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(220, 255, 255, ' + b.alpha + ')';
+      ctx.stroke();
+    }
+  }
+
+  function drawSparks(dt) {
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var s = sparks[i];
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy += 40 * dt;
+      s.life -= s.decay * dt * 60;
+      if (s.life <= 0) { sparks.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r * s.life, 0, PI2);
+      ctx.fillStyle = s.color + Math.max(0, s.life) + ')';
+      ctx.fill();
+    }
+  }
+
+  // ---------- 主循环 ----------
+  function frame(t) {
+    requestAnimationFrame(frame);
+    if (!last) last = t;
+    var dt = (t - last) / 1000;
+    last = t;
+    if (dt > 0.1) dt = 0.1;
+
+    if (state === 'playing') {
+      elapsed += dt;
+      updateSpawn(dt);
+      updatePlayer(dt);
+      updateFishes(dt);
+    } else if (state === 'ready') {
+      // 待机：小鱼自己游一下，画面不空
+      if (player) {
+        player.x = W / 2 + Math.sin(t * 0.0006) * Math.min(90, W * 0.12);
+        player.y = H / 2 + Math.cos(t * 0.0008) * 34;
+        player.ang = 0;
+      }
+    }
+
+    if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
+    drawBubbles(dt);
+
+    if (player) {
+      // 敌鱼先画（小鱼），保证玩家在视觉上压在最上层
+      for (var i = 0; i < fishes.length; i++) {
+        var f = fishes[i];
+        f.eatable = player.r > f.r * 1.06;
+        drawFish(f, faceGhost, f.eatable ? 'rgba(120, 232, 220,' : 'rgba(255, 104, 96,', t);
+      }
+      drawFish(player, faceShao, 'rgba(255, 208, 104,', t);
+    }
+
+    drawSparks(dt);
+  }
+
+  // ---------- 启动 ----------
+  resize();
+  window.addEventListener('resize', resize);
+
+  function boot() {
+    Promise.all([loadImg(IMG_SHAO), loadImg(IMG_GHOST)]).then(function (imgs) {
+      faceShao = makeFace(imgs[0], '邵', 'rgba(255, 210, 110, .95)', '#ff8fb8');
+      faceGhost = makeFace(imgs[1], '鬼', 'rgba(110, 226, 222, .95)', '#4ea8b4');
+      reset();
+      requestAnimationFrame(frame);
+    });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
