@@ -502,8 +502,9 @@
 
   function checkOrientation() {
     var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    var isLandscape = landscapeMq.matches;
-    if (isTouch && !isLandscape) {
+    // 直接用视口尺寸判断竖屏，比 matchMedia 更可靠
+    var isPortrait = window.innerHeight > window.innerWidth;
+    if (isTouch && isPortrait) {
       document.body.classList.add('force-landscape');
       rotateHint.style.display = 'none';
     } else {
@@ -514,22 +515,12 @@
   }
 
   function lockLandscape() {
-    var el = document.documentElement;
-    var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    function doLock() {
-      try {
-        if (screen.orientation && screen.orientation.lock) {
-          screen.orientation.lock('landscape').catch(function () {});
-        }
-      } catch (e) {}
-    }
-    if (fs) {
-      var p = fs.call(el);
-      if (p && p.then) p.then(doLock).catch(function () { doLock(); });
-      else doLock();
-    } else {
-      doLock();
-    }
+    // 视觉横屏已兜底，这里仅尝试系统级锁方向（不调用 requestFullscreen，避免干扰视觉横屏判断）
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    } catch (e) {}
   }
 
   rotateContinue.addEventListener('click', function () {
