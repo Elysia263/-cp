@@ -479,7 +479,9 @@
   var landscapeMq = window.matchMedia('(orientation: landscape)');
 
   function checkOrientation() {
-    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isTouch = ('ontouchstart' in window) ||
+                  (navigator.maxTouchPoints > 0) ||
+                  (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
     // 直接用视口尺寸判断竖屏，比 matchMedia 更可靠
     var isPortrait = window.innerHeight > window.innerWidth;
     if (isTouch && isPortrait) {
@@ -490,6 +492,12 @@
       document.body.classList.remove('force-landscape');
       rotateHint.style.display = 'none';
     }
+  }
+
+  function enterFullscreen() {
+    var el = document.documentElement;
+    var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (fs) { try { fs.call(el); } catch (e) {} }
   }
 
   function lockLandscape() {
@@ -522,7 +530,11 @@
 
   checkOrientation();
 
-  startBtn.addEventListener('click', startGame);
+  startBtn.addEventListener('click', function () {
+    enterFullscreen();
+    lockLandscape();
+    startGame();
+  });
 
   // ---------- 粉色爱心粒子 ----------
   var HEART_COLORS = ['#ff4d97', '#ff7eb6', '#ff9ecb', '#ff5fa2'];

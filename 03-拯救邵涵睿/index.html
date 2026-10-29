@@ -501,7 +501,9 @@
   var landscapeMq = window.matchMedia('(orientation: landscape)');
 
   function checkOrientation() {
-    var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    var isTouch = ('ontouchstart' in window) ||
+                  (navigator.maxTouchPoints > 0) ||
+                  (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
     // 直接用视口尺寸判断竖屏，比 matchMedia 更可靠
     var isPortrait = window.innerHeight > window.innerWidth;
     if (isTouch && isPortrait) {
@@ -512,6 +514,12 @@
       rotateHint.style.display = 'none';
     }
     resize();   // 方向变化后重新计算画布尺寸
+  }
+
+  function enterFullscreen() {
+    var el = document.documentElement;
+    var fs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (fs) { try { fs.call(el); } catch (e) {} }
   }
 
   function lockLandscape() {
@@ -2092,6 +2100,8 @@
 
   // 主界面
   btnStart.addEventListener('click', function () {
+    enterFullscreen();
+    lockLandscape();
     reset();
   });
   metaBtn.addEventListener('click', function () {
