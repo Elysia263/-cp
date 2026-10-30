@@ -637,6 +637,7 @@
       <div class="cards" id="shopWrap"></div>
       <div class="btns">
         <button id="shopRefresh" class="ghost">刷新（1 次）</button>
+        <button id="shopForge" class="ghost">武器强化</button>
         <button id="shopNext">继续下一波</button>
       </div>
       <div class="sub" id="shopHint" style="margin-top:14px">小怪 +1 金币 · 精英 +5 金币</div>
@@ -651,6 +652,18 @@
       <div class="metaList" id="metaList"></div>
       <div class="sub" id="mpHint" style="margin-top:14px">每消灭 3 只精英 +1 · 每次通关 +2</div>
       <div class="btns"><button id="metaClose">返回</button></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="forgeOverlay">
+    <div class="panel">
+      <span class="kicker">武器强化</span>
+      <h1>满星突破</h1>
+      <div class="sub">仅标准难度 · 已满星武器可继续强化</div>
+      <div class="pts">金币 <b id="forgeCoins">0</b></div>
+      <div class="metaList" id="forgeList"></div>
+      <div class="sub" id="forgeHint" style="margin-top:14px">每次强化消耗 200 金币 · 第 10 波后的商店开放强化</div>
+      <div class="btns"><button id="forgeBack" class="ghost">返回商店</button></div>
     </div>
   </div>
 
@@ -697,6 +710,7 @@
     };
     shake = 14;
     flashT = 0.18; flashCol = '#3a1a2a';
+    playSfx('boss');
     floaters.push({ x: W / 2, y: H * 0.35, text: '最终 Boss「暗影·邵涵睿」降临！', life: 3.2, color: '#ff6f9f', big: true });
     floaters.push({ x: W / 2, y: H * 0.35 + 40, text: '击败她，把邵涵睿带回来！', life: 3.2, color: '#ffc8dd' });
     // 显示 Boss 血条
@@ -762,6 +776,7 @@
   }
 
   function onFirstInteract() {
+    ensureAudio();
     lockLandscape();
     checkOrientation();
   }
@@ -833,6 +848,12 @@
   var shopNext = document.getElementById('shopNext');
   var shopSub = document.getElementById('shopSub');
   var shopRefresh = document.getElementById('shopRefresh');
+  var shopForge = document.getElementById('shopForge');
+  var forgeOverlay = document.getElementById('forgeOverlay');
+  var forgeCoins = document.getElementById('forgeCoins');
+  var forgeList = document.getElementById('forgeList');
+  var forgeBack = document.getElementById('forgeBack');
+  var forgeHint = document.getElementById('forgeHint');
   var ovRefreshRow = document.getElementById('ovRefreshRow');
   var ovRefresh = document.getElementById('ovRefresh');
 
@@ -1086,6 +1107,20 @@
 
   var KATANA_MERGE = 3;    // 三把武士刀合成二星
 
+  function maxWeaponStar(id) {
+    return id === 'katana' ? 2 : (id === 'volt' ? 5 : 3);
+  }
+  var FORGE_LIMIT = { katana: 2, bow: 3, aura: 4, boom: 3, tome: 3, volt: 5 };
+  function forgeDesc(id) {
+    if (id === 'katana') return '每次 +100 冲刺伤害 · 上限 2 次';
+    if (id === 'bow') return '每次 +10 伤害、+1 穿透 · 上限 3 次；满层后箭矢可触发甜蜜电波';
+    if (id === 'aura') return '每次主角 +15% 减伤 · 上限 4 次';
+    if (id === 'boom') return '每次 +5 伤害、冷却 -0.1s · 上限 3 次；满层后飞出变大、返回缩小';
+    if (id === 'tome') return '每次 +6 伤害、+1 弹幕 · 上限 3 次；满层后命中分裂 3 个小弹幕';
+    if (id === 'volt') return '每次触发概率 +10% · 最高到 100%';
+    return '';
+  }
+
   function bpCount(id) {
     if (!player) return 0;
     for (var i = 0; i < player.backpack.length; i++) {
@@ -1176,7 +1211,7 @@
       var w = player.weapons[wi];
       var def = (w.id === 'katana') ? KATANA : WEAPON_DEFS[w.id];
       if (!def) continue;
-      var st = '★★★★★'.slice(0, w.star || 1);
+      var st = '★★★★★'.slice(0, w.star || 1) + (w.plus ? ' +' + w.plus : '');
       var cdInfo = '';
       if (w.id === 'katana') {
         cdInfo = player.dashCd > 0 ? player.dashCd.toFixed(1) + 's' : '就绪';
@@ -1202,7 +1237,7 @@
       rageBtn.style.display = 'none';
       return;
     }
-    var ast = k.star === 2 ? '★★' : '★';
+    var ast = (k.star === 2 ? '★★' : '★') + (k.plus ? ' +' + k.plus : '');
     var cdTxt = player.dashCd > 0 ? player.dashCd.toFixed(1) + 's' : '就绪';
     var segs = '';
     for (var si = 0; si < RAGE_BARS; si++) {
@@ -1231,7 +1266,7 @@
 
   // ---------- 商店 ----------
   var SHOP_ITEMS = [
-    { id: 'katana', nm: '武士刀', ic: '🗡️', price: 20,
+    { id: 'katana', nm: '武士刀', ic: '🗡️', price: 30,
       ds: '近战槽 · 怒气满一格按空格进入冲刺模式，模式内右键冲刺；命中 -6 秒冷却，击杀全返还；三把合成二星（伤害 50，模式内冲刺可攒怒气）',
       can: function () { return canOfferKatana(); } },
     { id: 'bow', nm: '恋之弓', ic: '🏹', price: 25,
@@ -1281,6 +1316,7 @@
         if (player.coins < it.price || !it.can()) return;
         player.coins -= it.price;
         acquireWeapon(it.id);
+        playSfx('buy');
         buildShop();
         updateHud();
       });
@@ -1295,6 +1331,7 @@
     shopRerolled = false;
     shopRefresh.disabled = false;
     shopRefresh.textContent = '刷新（1 次）';
+    shopForge.style.display = isStandard() ? '' : 'none';
     buildShop();
     shopOverlay.classList.remove('hidden');
   }
@@ -1313,6 +1350,79 @@
     shopRefresh.textContent = '刷新已用';
     buildShop();
   });
+
+  function fullWeapons() {
+    var out = [];
+    if (!player) return out;
+    for (var i = 0; i < player.weapons.length; i++) {
+      var w = player.weapons[i];
+      var def = w.id === 'katana' ? KATANA : WEAPON_DEFS[w.id];
+      if (!def) continue;
+      var mx = maxWeaponStar(w.id);
+      if ((w.star || 1) >= mx) out.push({ w: w, def: def, mx: mx });
+    }
+    return out;
+  }
+
+  function buildForge() {
+    if (!player) return;
+    var unlocked = isStandard() && wave >= 10;
+    forgeCoins.textContent = player.coins;
+    forgeHint.textContent = unlocked ? '每次强化消耗 200 金币' : '第 10 波后的商店开放强化 · 当前仅可查看';
+    forgeList.innerHTML = '';
+    var arr = fullWeapons();
+    if (!arr.length) {
+      forgeList.innerHTML = '<div class="sub">暂无可强化的满星武器</div>';
+      return;
+    }
+    arr.forEach(function (it) {
+      var plus = it.w.plus || 0;
+      var limit = FORGE_LIMIT[it.w.id] || 0;
+      var maxed = plus >= limit;
+      var row = document.createElement('div');
+      row.className = 'metaRow';
+      row.innerHTML = '<div class="info"><div class="nm">' + it.def.ic + ' ' + it.def.nm +
+        ' <span class="st">' + '★★★★★'.slice(0, it.mx) + (plus ? ' +' + plus : '') + '</span></div>' +
+        '<div class="ds">' + forgeDesc(it.w.id) + '</div></div>' +
+        '<div class="lv2">+' + plus + '/' + limit + '</div>';
+      var btn = document.createElement('button');
+      btn.className = 'plus';
+      btn.textContent = maxed ? '满' : '+';
+      btn.disabled = !unlocked || maxed || player.coins < 200;
+      btn.addEventListener('click', function () {
+        if (!player || !unlocked || player.coins < 200) return;
+        if ((it.w.plus || 0) >= (FORGE_LIMIT[it.w.id] || 0)) return;
+        player.coins -= 200;
+        it.w.plus = (it.w.plus || 0) + 1;
+        playSfx('buy');
+        updateHud();
+        updateWbar();
+        buildShop();
+        buildForge();
+      });
+      row.appendChild(btn);
+      forgeList.appendChild(row);
+    });
+  }
+
+  function openForge() {
+    if (state !== 'shop' || !player || !isStandard()) return;
+    state = 'forge';
+    shopOverlay.classList.add('hidden');
+    buildForge();
+    forgeOverlay.classList.remove('hidden');
+  }
+
+  function closeForge() {
+    forgeOverlay.classList.add('hidden');
+    if (!player) { showMenu(); return; }
+    state = 'shop';
+    buildShop();
+    shopOverlay.classList.remove('hidden');
+  }
+
+  shopForge.addEventListener('click', openForge);
+  forgeBack.addEventListener('click', closeForge);
 
   function tryRage() {
     if (state !== 'playing' || !player) return;
@@ -1355,6 +1465,7 @@
 
     shake = Math.max(shake, 4);
     burst(player.x, player.y, 'rgba(255, 240, 210,', 10, 150);
+    playSfx('dash');
   }
 
   function refreshMenu() {
@@ -1366,6 +1477,7 @@
     player = null;
     overlay.classList.add('hidden');
     metaOverlay.classList.add('hidden');
+    forgeOverlay.classList.add('hidden');
     diffOverlay.classList.add('hidden');
     cardWrap.innerHTML = '';
     mainMenu.classList.remove('hidden');
@@ -1419,6 +1531,7 @@
     ovSub.textContent = 'ROGUELIKE · SURVIVE ' + maxWave() + ' WAVES';
     overlay.classList.add('hidden');
     metaOverlay.classList.add('hidden');
+    forgeOverlay.classList.add('hidden');
     diffOverlay.classList.add('hidden');
     mainMenu.classList.add('hidden');
     tipEl.textContent = ('ontouchstart' in window || navigator.maxTouchPoints > 0)
@@ -1487,9 +1600,60 @@
 
   function dmgMult() { return conduitActive ? 2 : 1; }
   function rateMult() { return conduitActive ? 2 : 1; }
+  function damageReduction() {
+    return Math.min(0.6, weaponPlus('aura') * 0.15);
+  }
+  var audioCtx = null;
+  var sfxLast = {};
+  var SFX_DEF = {
+    shoot: { type: 'square', f1: 520, f2: 260, dur: 0.055, vol: 0.035, gap: 55 },
+    bow: { type: 'triangle', f1: 760, f2: 420, dur: 0.06, vol: 0.035, gap: 70 },
+    tome: { type: 'sine', f1: 620, f2: 980, dur: 0.08, vol: 0.03, gap: 90 },
+    hit: { type: 'sawtooth', f1: 190, f2: 90, dur: 0.045, vol: 0.028, gap: 65 },
+    kill: { type: 'square', f1: 320, f2: 760, dur: 0.09, vol: 0.045, gap: 80 },
+    hurt: { type: 'sawtooth', f1: 130, f2: 55, dur: 0.18, vol: 0.08, gap: 260 },
+    levelup: { type: 'sine', f1: 440, f2: 880, dur: 0.16, vol: 0.06, gap: 200 },
+    coin: { type: 'square', f1: 980, f2: 1320, dur: 0.06, vol: 0.035, gap: 70 },
+    buy: { type: 'triangle', f1: 520, f2: 1040, dur: 0.12, vol: 0.05, gap: 120 },
+    dash: { type: 'sawtooth', f1: 220, f2: 520, dur: 0.11, vol: 0.045, gap: 120 },
+    zap: { type: 'square', f1: 880, f2: 220, dur: 0.07, vol: 0.032, gap: 110 },
+    boom: { type: 'sawtooth', f1: 110, f2: 45, dur: 0.24, vol: 0.075, gap: 180 },
+    conduit: { type: 'triangle', f1: 260, f2: 780, dur: 0.28, vol: 0.07, gap: 300 },
+    boss: { type: 'sawtooth', f1: 90, f2: 45, dur: 0.45, vol: 0.09, gap: 500 }
+  };
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function playSfx(name) {
+    var def = SFX_DEF[name];
+    if (!def) return;
+    var now = performance.now();
+    if (now - (sfxLast[name] || 0) < def.gap) return;
+    sfxLast[name] = now;
+    ensureAudio();
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = def.type;
+    osc.frequency.setValueAtTime(def.f1, t);
+    if (def.f2) osc.frequency.exponentialRampToValueAtTime(Math.max(1, def.f2), t + def.dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(def.vol, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + def.dur);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + def.dur + 0.03);
+  }
   function hurtPlayer(amount) {
     if (!player || state === 'dead' || state === 'clear') return;
     if (adminGod) { updateHud(); return; }
+    amount = Math.max(0, amount * (1 - damageReduction()));
+    playSfx('hurt');
     player.hp -= amount;
     if (conduitActive && player.hp < 1) player.hp = 1;
     updateHud();
@@ -1536,6 +1700,7 @@
     state = 'playing';
     flashT = 0.16; flashCol = '#ffd76a';
     shake = Math.max(shake, 6);
+    playSfx('conduit');
     floaters.push({ x: W / 2, y: H * 0.32, text: '导管时刻开启！', life: 2.2, color: '#ffd76a', big: true });
     floaters.push({ x: W / 2, y: H * 0.32 + 36, text: '十倍怪潮 · 输出攻速翻倍 · 击杀得金币', life: 2.2, color: '#fff3e0' });
     updateHud();
@@ -1613,6 +1778,7 @@
     overlay.classList.add('hidden');
     shopOverlay.classList.add('hidden');
     metaOverlay.classList.add('hidden');
+    forgeOverlay.classList.add('hidden');
   }
   function giveWeapon(id) {
     if (!player) return;
@@ -1716,6 +1882,7 @@
   function openLevelUp() {
     state = 'levelup';
     if (levelQueue <= 0) return;
+    playSfx('levelup');
     flashT = 0.14; flashCol = '#ffd29b';
     ovTitle.textContent = '升级！';
     ovSub.textContent = 'LEVEL ' + player.level + ' · 选择一项强化';
@@ -1999,7 +2166,7 @@
           p.dash.hitIds.push(de);
           de.swordT = KATANA.credit;
           burst(de.x, de.y, 'rgba(255, 246, 225,', 9, 170);
-          hitEnemy(de, KATANA.dmg[p.dash.star] * dmgMult(), false, false, p.dash.star !== 2);
+          hitEnemy(de, (KATANA.dmg[p.dash.star] + 100 * weaponPlus('katana')) * dmgMult(), false, false, p.dash.star !== 2);
           if (!de.dead && p.swordSession && !p.swordSession.hitRefunded) {
             p.swordSession.hitRefunded = true;
             p.dashCd = Math.max(0, p.dashCd - HIT_REFUND);
@@ -2015,7 +2182,7 @@
           Math.hypot(boss.x - p.x, boss.y - p.y) < p.r + boss.r + 18) {
         p.dash.hitIds.push(boss);
         burst(boss.x, boss.y, 'rgba(255, 246, 225,', 12, 180);
-        hitBoss(KATANA.dmg[p.dash.star] * dmgMult(), false);
+        hitBoss((KATANA.dmg[p.dash.star] + 100 * weaponPlus('katana')) * dmgMult(), false);
         if (p.swordSession && !p.swordSession.hitRefunded) {
           p.swordSession.hitRefunded = true;
           p.dashCd = Math.max(0, p.dashCd - HIT_REFUND);
@@ -2107,6 +2274,19 @@
     }
     return 0;
   }
+  function weaponPlus(id) {
+    if (!player) return 0;
+    for (var i = 0; i < player.weapons.length; i++) {
+      if (player.weapons[i].id === id) return player.weapons[i].plus || 0;
+    }
+    return 0;
+  }
+  function boomScale(bm) {
+    if (weaponPlus('boom') < 3) return 1;
+    if (!bm.returning) return 1 + Math.min(1, bm.t / (bm.maxT * 0.5));
+    var back = (bm.t - bm.maxT * 0.5) / bm.maxT;
+    return Math.max(1, 2 - Math.min(1, back));
+  }
 
   function updateWeapons(dt) {
     var p = player;
@@ -2117,15 +2297,17 @@
       p.wCd.bow -= dt;
       var s = weaponStar('bow');
       if (!p.mode && p.wCd.bow <= 0 && p.target && !p.target.dead) {
+        var fBow = weaponPlus('bow');
         p.wCd.bow = WEAPON_DEFS.bow.cd * (1 - (s - 1) * 0.12) / rateMult();
-        var dmg = (WEAPON_DEFS.bow.dmg + (s - 1) * 5) * dmgMult();
+        var dmg = (WEAPON_DEFS.bow.dmg + (s - 1) * 5 + fBow * 10) * dmgMult();
         var ang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
         bullets.push({
           x: p.x, y: p.y, vx: Math.cos(ang) * WEAPON_DEFS.bow.speed,
           vy: Math.sin(ang) * WEAPON_DEFS.bow.speed,
-          r: 5, dmg: dmg, life: 1.6, pierce: WEAPON_DEFS.bow.pierce + (s - 1) + p.pierce,
+          r: 5, dmg: dmg, life: 1.6, pierce: WEAPON_DEFS.bow.pierce + (s - 1) + fBow + p.pierce,
           col: 'rgba(255, 180, 220,', friendly: true, bow: true, hitIds: []
         });
+        playSfx('bow');
       }
     }
 
@@ -2157,8 +2339,9 @@
       p.wCd.boom -= dt;
       var sb = weaponStar('boom');
       if (!p.mode && p.wCd.boom <= 0 && p.target && !p.target.dead) {
-        p.wCd.boom = WEAPON_DEFS.boom.cd * (1 - (sb - 1) * 0.1) / rateMult();
-        var bdmg = (WEAPON_DEFS.boom.dmg + (sb - 1) * 4) * dmgMult();
+        var fBoom = weaponPlus('boom');
+        p.wCd.boom = Math.max(0.3, (WEAPON_DEFS.boom.cd - fBoom * 0.1) * (1 - (sb - 1) * 0.1)) / rateMult();
+        var bdmg = (WEAPON_DEFS.boom.dmg + (sb - 1) * 4 + fBoom * 5) * dmgMult();
         var bang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
         var cnt = 1 + Math.floor((sb - 1) / 2);
         for (var bi = 0; bi < cnt; bi++) {
@@ -2169,6 +2352,7 @@
             dmg: bdmg, hitIds: [], returning: false
           });
         }
+        playSfx('boom');
       }
     }
     // 更新回旋镖
@@ -2193,7 +2377,7 @@
       for (var ei = 0; ei < enemies.length; ei++) {
         var ee = enemies[ei];
         if (ee.dead || bm.hitIds.indexOf(ee) >= 0) continue;
-        if (Math.hypot(ee.x - bm.x, ee.y - bm.y) < ee.r + 10) {
+        if (Math.hypot(ee.x - bm.x, ee.y - bm.y) < ee.r + 10 * boomScale(bm)) {
           bm.hitIds.push(ee);
           hitEnemy(ee, bm.dmg, false, false, false);
           burst(ee.x, ee.y, 'rgba(255, 150, 200,', 5, 80);
@@ -2201,7 +2385,7 @@
       }
       // 回旋镖命中 Boss
       if (boss && !boss.dead && bm.hitIds.indexOf(boss) < 0 &&
-          Math.hypot(boss.x - bm.x, boss.y - bm.y) < boss.r + 10) {
+          Math.hypot(boss.x - bm.x, boss.y - bm.y) < boss.r + 10 * boomScale(bm)) {
         bm.hitIds.push(boss);
         hitBoss(bm.dmg, false);
         burst(boss.x, boss.y, 'rgba(255, 150, 200,', 5, 80);
@@ -2214,9 +2398,10 @@
       p.wCd.tome -= dt;
       var st = weaponStar('tome');
       if (!p.mode && p.wCd.tome <= 0) {
+        var fTome = weaponPlus('tome');
         p.wCd.tome = WEAPON_DEFS.tome.cd * (1 - (st - 1) * 0.1) / rateMult();
-        var tdmg = (WEAPON_DEFS.tome.dmg + (st - 1) * 3) * dmgMult();
-        var tcnt = WEAPON_DEFS.tome.count + (st - 1);
+        var tdmg = (WEAPON_DEFS.tome.dmg + (st - 1) * 3 + fTome * 6) * dmgMult();
+        var tcnt = WEAPON_DEFS.tome.count + (st - 1) + fTome;
         for (var ti = 0; ti < tcnt; ti++) {
           var tang = (Math.PI * 2 / tcnt) * ti + p.aim;
           bullets.push({
@@ -2226,6 +2411,7 @@
             col: 'rgba(150, 200, 255,', friendly: true, tome: true, hitIds: []
           });
         }
+        playSfx('tome');
       }
     }
   }
@@ -2267,6 +2453,7 @@
     }
     // 枪口火花
     burst(p.x + Math.cos(base) * p.r * 1.6, p.y + Math.sin(base) * p.r * 1.6, 'rgba(255, 200, 120,', 3, 70);
+    playSfx('shoot');
   }
 
   function updateEnemies(dt) {
@@ -2402,6 +2589,7 @@
 
   function hitEnemy(e, amount, isCrit, noBoom, noRage) {
     if (e.dead) return;
+    playSfx('hit');
     if ((e.elite || e.kind === 'eliteDark') && linkSupportAlive()) amount *= 0.72;
     if (adminOneHit && !e.elite) amount = Math.max(amount, e.hp + 1);
     e.hp -= amount;
@@ -2420,7 +2608,9 @@
     if (!player || !target || target.dead) return;
     var s = weaponStar('volt');
     if (!s) return;
-    if (Math.random() >= s * 0.1) return;
+    var chance = Math.min(1, s * 0.1 + weaponPlus('volt') * 0.1);
+    if (Math.random() >= chance) return;
+    playSfx('zap');
     var dmg = Math.max(1, Math.round(player.dmg * dmgMult() * 0.5));
     var count = 1 + (s - 1) * 2;
     var cand = [];
@@ -2442,11 +2632,13 @@
   function killEnemy(e, noBoom) {
     if (e.dead) return;
     e.dead = true;
+    playSfx('kill');
     if (e.kind === 'split' && isStandard()) e.splitPending = true;
     kills++;
     combo++;
     comboT = 2;
     player.coins += e.elite ? 5 : 1;
+    playSfx('coin');
     if (!conduitActive) gainXp(e.elite ? 15 : 1);
 
     // 剑击杀归属：冲刺摸过的敌人，后续被子弹收掉也返还冷却
@@ -2667,6 +2859,20 @@
     }
   }
 
+  function splitTome(b, e) {
+    var base = Math.atan2(b.vy, b.vx);
+    var dmg = Math.max(1, Math.round((b.crit ? b.dmg * 2 : b.dmg) * 0.2));
+    for (var k = -1; k <= 1; k++) {
+      var a = base + k * 0.75;
+      bullets.push({
+        x: e.x, y: e.y,
+        vx: Math.cos(a) * 380, vy: Math.sin(a) * 380,
+        r: 3.5, dmg: dmg, life: 0.55, pierce: 0,
+        col: 'rgba(190, 225, 255,', friendly: true, tome: true, small: true, hitIds: [e]
+      });
+    }
+  }
+
   function updateBullets(dt) {
     for (var i = bullets.length - 1; i >= 0; i--) {
       var b = bullets[i];
@@ -2700,6 +2906,8 @@
             hitEnemy(e, rawDmg, b.crit, false);
           }
           if (b.kind === 'basic') triggerVolt(e);
+          else if (b.bow && weaponPlus('bow') >= 3) triggerVolt(e);
+          if (b.tome && !b.small && weaponPlus('tome') >= 3) splitTome(b, e);
           if (b.pierce > 0) {
             b.pierce--;
           } else {
@@ -3088,6 +3296,7 @@
   function doBoom(x, y, r, dmg, canHurt) {
     rings.push({ x: x, y: y, max: r, t: 0 });
     burst(x, y, 'rgba(255, 80, 120,', 16, 180);
+    playSfx('boom');
     shake = Math.max(shake, 6);
     if (canHurt && player && player.inv <= 0) {
       if (Math.hypot(player.x - x, player.y - y) < r + player.r) {
@@ -3530,6 +3739,8 @@
           ctx.save();
           ctx.translate(bm.x, bm.y);
           ctx.rotate(bm.t * 12);
+          var bms = boomScale(bm);
+          ctx.scale(bms, bms);
           ctx.fillStyle = '#ff7eb6';
           ctx.shadowColor = 'rgba(255, 100, 160, .7)';
           ctx.shadowBlur = 10;
@@ -3621,6 +3832,11 @@
 
   // 左上角返回：局内先回主界面，主界面再回大厅
   backLink.addEventListener('click', function (e) {
+    if (!forgeOverlay.classList.contains('hidden')) {
+      e.preventDefault();
+      closeForge();
+      return;
+    }
     if (!diffOverlay.classList.contains('hidden')) {
       e.preventDefault();
       diffOverlay.classList.add('hidden');
@@ -3630,6 +3846,7 @@
     if (state !== 'ready') {
       e.preventDefault();
       metaOverlay.classList.add('hidden');
+      forgeOverlay.classList.add('hidden');
       showMenu();
     }
   });
