@@ -662,7 +662,7 @@
       <div class="sub">仅标准难度 · 已满星武器可继续强化</div>
       <div class="pts">金币 <b id="forgeCoins">0</b></div>
       <div class="metaList" id="forgeList"></div>
-      <div class="sub" id="forgeHint" style="margin-top:14px">每次强化消耗 200 金币 · 第 10 波后的商店开放强化</div>
+      <div class="sub" id="forgeHint" style="margin-top:14px">每次强化消耗 300 金币 · 第 10 波后的商店开放强化</div>
       <div class="btns"><button id="forgeBack" class="ghost">返回商店</button></div>
     </div>
   </div>
@@ -673,7 +673,9 @@
 
   var PI2 = Math.PI * 2;
   var MAX_WAVE = 10;
-  var WAVE_LEN = 30;      // 每波时长（秒）
+  var WAVE_LEN = 30;      // 每波时长（秒，新手）
+  function waveLen() { return isStandard() ? 25 : WAVE_LEN; }
+  function shopGap() { return isStandard() ? 3 : 2; }
 
   // ---------- Boss 战 ----------
   var BOSS_WAVE = 10;
@@ -689,7 +691,10 @@
   var bossHpBar = null;   // Boss 血条 DOM
 
   function spawnBoss() {
-    var baseHp = Math.round((2500 + wave * 200 + (player ? player.level * 80 : 0)) * (isStandard() ? 2.2 : 1));
+    var lv = player ? player.level : 1;
+    var baseHp = Math.round(isStandard()
+      ? (4000 + 420 * lv + 250 * wave) * 2.2
+      : 2500 + wave * 200 + lv * 80);
     boss = {
       x: W / 2, y: -80,
       r: 46,
@@ -1062,7 +1067,7 @@
   var KATANA = {
     id: 'katana', type: 'melee', nm: '武士刀', ic: '🗡️',
     dmg: { 1: 15, 2: 50 },
-    cd: 7,
+    cd: 6,
     credit: 1.2       // 冲刺摸到过的敌人，被子弹收掉也算剑击杀的窗口
   };
   // 新武器定义
@@ -1079,7 +1084,7 @@
     },
     boom: {
       id: 'boom', type: 'throw', nm: '回旋飞心', ic: '💫',
-      dmg: 10, cd: 1.0, speed: 350,
+      dmg: 12, cd: 1.0, speed: 350,
       desc: '扔出回旋飞心，来回伤害敌人'
     },
     tome: {
@@ -1114,10 +1119,10 @@
   function forgeDesc(id) {
     if (id === 'katana') return '每次 +100 冲刺伤害 · 上限 2 次';
     if (id === 'bow') return '每次 +10 伤害、+1 穿透 · 上限 3 次；满层后箭矢可触发甜蜜电波';
-    if (id === 'aura') return '每次主角 +15% 减伤 · 上限 4 次';
+    if (id === 'aura') return '每次主角 +15% 减伤 · 上限 4 次（最高 45%）';
     if (id === 'boom') return '每次 +5 伤害、冷却 -0.1s · 上限 3 次；满层后飞出变大、返回缩小';
     if (id === 'tome') return '每次 +6 伤害、+1 弹幕 · 上限 3 次；满层后命中分裂 3 个小弹幕';
-    if (id === 'volt') return '每次触发概率 +10% · 最高到 100%';
+    if (id === 'volt') return '每次触发概率 +10% · 最高到 60%';
     return '';
   }
 
@@ -1266,22 +1271,22 @@
 
   // ---------- 商店 ----------
   var SHOP_ITEMS = [
-    { id: 'katana', nm: '武士刀', ic: '🗡️', price: 30,
+    { id: 'katana', nm: '武士刀', ic: '🗡️', price: 45,
       ds: '近战槽 · 怒气满一格按空格进入冲刺模式，模式内右键冲刺；命中 -6 秒冷却，击杀全返还；三把合成二星（伤害 50，模式内冲刺可攒怒气）',
       can: function () { return canOfferKatana(); } },
-    { id: 'bow', nm: '恋之弓', ic: '🏹', price: 25,
+    { id: 'bow', nm: '恋之弓', ic: '🏹', price: 38,
       ds: '远程槽 · 自动向最近敌人射箭，穿透1个敌人。重复购买可升级（伤害+5，冷却-12%，穿透+1）',
       can: function () { return weaponStar('bow') < 3; } },
-    { id: 'volt', nm: '甜蜜电波', ic: '⚡', price: 25,
-      ds: '被动 · 普攻命中概率触发连锁电击：10%/星概率，1 道额外电击；每升 1 星概率 +10%、额外电击 +2，最高 5 星',
+    { id: 'volt', nm: '甜蜜电波', ic: '⚡', price: 38,
+      ds: '被动 · 普攻命中概率触发连锁电击：10%/星概率，1 道额外电击；每升 1 星概率 +10%、额外电击 +1，最高 5 星（概率上限 60%）',
       can: function () { return isStandard() && weaponStar('volt') < 5; } },
-    { id: 'aura', nm: '守护光环', ic: '🔮', price: 30,
+    { id: 'aura', nm: '守护光环', ic: '🔮', price: 45,
       ds: '被动 · 主角周围持续伤害光环。重复购买可升级（伤害+3，范围+10）',
       can: function () { return weaponStar('aura') < 3; } },
-    { id: 'boom', nm: '回旋飞心', ic: '💫', price: 28,
+    { id: 'boom', nm: '回旋飞心', ic: '💫', price: 42,
       ds: '投掷 · 扔出回旋飞心来回伤害敌人。重复购买可升级（伤害+4，冷却-10%）',
       can: function () { return weaponStar('boom') < 3; } },
-    { id: 'tome', nm: '魔法弹幕', ic: '📖', price: 26,
+    { id: 'tome', nm: '魔法弹幕', ic: '📖', price: 39,
       ds: '弹幕 · 向四周发射魔法弹幕。重复购买可升级（伤害+3，弹幕数+1）',
       can: function () { return weaponStar('tome') < 3; } }
   ];
@@ -1368,7 +1373,7 @@
     if (!player) return;
     var unlocked = isStandard() && wave >= 10;
     forgeCoins.textContent = player.coins;
-    forgeHint.textContent = unlocked ? '每次强化消耗 200 金币' : '第 10 波后的商店开放强化 · 当前仅可查看';
+    forgeHint.textContent = unlocked ? '每次强化消耗 300 金币' : '第 10 波后的商店开放强化 · 当前仅可查看';
     forgeList.innerHTML = '';
     var arr = fullWeapons();
     if (!arr.length) {
@@ -1388,11 +1393,11 @@
       var btn = document.createElement('button');
       btn.className = 'plus';
       btn.textContent = maxed ? '满' : '+';
-      btn.disabled = !unlocked || maxed || player.coins < 200;
+      btn.disabled = !unlocked || maxed || player.coins < 300;
       btn.addEventListener('click', function () {
-        if (!player || !unlocked || player.coins < 200) return;
+        if (!player || !unlocked || player.coins < 300) return;
         if ((it.w.plus || 0) >= (FORGE_LIMIT[it.w.id] || 0)) return;
-        player.coins -= 200;
+        player.coins -= 300;
         it.w.plus = (it.w.plus || 0) + 1;
         playSfx('buy');
         updateHud();
@@ -1487,6 +1492,7 @@
 
   // ---------- 开局 ----------
   function reset() {
+    buildUpgrades();
     player = {
       x: W / 2, y: H / 2, r: 20,
       hp: 130, maxHp: 130,
@@ -1494,7 +1500,7 @@
       dmg: 9, rate: 2.0, shots: 1,
       pierce: 0, crit: 0, boomLevel: 0, boomPct: 0, boomR: 0, leech: 0,
       weapons: [], backpack: [], dashCd: 0, dash: null,
-      level: 1, xp: 0, xpNeed: 6,
+      level: 1, xp: 0, xpNeed: isStandard() ? 10 : 6,
       coins: 0,
       rage: 0, mode: false, modeT: 0,
       fcd: 0, inv: 0, regen: 0, regenCd: 0,
@@ -1547,9 +1553,9 @@
     UPGRADES = [
       { id: 'dmg', ic: '💥', nm: '情深似海', ds: '子弹伤害 +4',
         fn: function () { player.dmg += 4; } },
-      { id: 'rate', ic: '⚡', nm: '上下其手', ds: '攻击速度 +18%（上限 4.0 次/秒）',
-        can: function () { return player.rate < 4.0; },
-        fn: function () { player.rate = Math.min(4.0, player.rate * 1.18); } },
+      { id: 'rate', ic: '⚡', nm: '上下其手', ds: '攻击速度 +18%（上限 ' + caps().rate.toFixed(1) + ' 次/秒）',
+        can: function () { return player.rate < caps().rate; },
+        fn: function () { player.rate = Math.min(caps().rate, player.rate * 1.18); } },
       { id: 'speed', ic: '👟', nm: '心急如焚', ds: '移动速度 +8%（上限 340）',
         can: function () { return player.speed < 340; },
         fn: function () { player.speed = Math.min(340, player.speed * 1.08); } },
@@ -1563,9 +1569,9 @@
       { id: 'pierce', ic: '🏹', nm: '一箭穿心', ds: '所有子弹与武器弹幕额外穿透 1 个敌人（最多 3 层）',
         can: function () { return player.pierce < 3; },
         fn: function () { player.pierce++; } },
-      { id: 'crit', ic: '💗', nm: '心动暴击', ds: '暴击率 +10%，暴击伤害 ×2（最多 50%）',
-        can: function () { return player.crit < 0.5 - 1e-6; },
-        fn: function () { player.crit = Math.min(0.5, player.crit + 0.1); } },
+      { id: 'crit', ic: '💗', nm: '心动暴击', ds: '暴击率 +10%，暴击伤害 ×2（最多 ' + Math.round(caps().crit * 100) + '%）',
+        can: function () { return player.crit < caps().crit - 1e-6; },
+        fn: function () { player.crit = Math.min(caps().crit, player.crit + 0.1); } },
       { id: 'boom', ic: '🎆', nm: '爱意爆裂', ds: '击杀时对周围敌人造成范围伤害（最多 3 层）',
         can: function () { return player.boomLevel < 3; },
         fn: function () {
@@ -1573,8 +1579,8 @@
           player.boomPct = [0, 0.3, 0.45, 0.6][player.boomLevel];
           player.boomR = [0, 60, 75, 90][player.boomLevel];
         } },
-      { id: 'leech', ic: '🫂', nm: '她的怀抱', ds: '每次击杀回复 0.6 生命（最多 3 层）',
-        can: function () { return player.leech < 3; },
+      { id: 'leech', ic: '🫂', nm: '她的怀抱', ds: '每次击杀回复 0.6 生命（最多 ' + caps().leech + ' 层）',
+        can: function () { return player.leech < caps().leech; },
         fn: function () { player.leech++; } }
     ];
   }
@@ -1584,6 +1590,17 @@
       return u.can ? u.can() : true;
     });
     var out = [];
+    // 标准难度保底 1 张输出卡，避免三张全防御
+    if (isStandard()) {
+      var dps = pool.filter(function (u) {
+        return u.id === 'dmg' || u.id === 'rate' || u.id === 'shot' || u.id === 'crit' || u.id === 'pierce';
+      });
+      if (dps.length) {
+        var pick = dps[Math.floor(Math.random() * dps.length)];
+        out.push(pick);
+        pool.splice(pool.indexOf(pick), 1);
+      }
+    }
     while (out.length < 3 && pool.length) {
       var i = Math.floor(Math.random() * pool.length);
       out.push(pool[i]);
@@ -1597,11 +1614,17 @@
   // ---------- 导管时刻（仅标准难度，第10波精英清完触发） ----------
   var CONDUIT_LEN = 20;
   var conduitPending = false, conduitActive = false, conduitT = 0, conduitDone = false;
+  var conduitCoins = 0;   // 导管时刻单次金币上限计数
 
   function dmgMult() { return conduitActive ? 2 : 1; }
   function rateMult() { return conduitActive ? 2 : 1; }
+  function caps() {
+    return isStandard()
+      ? { rate: 3.5, crit: 0.4, leech: 2, dr: 0.45, voltChance: 0.6 }
+      : { rate: 4.0, crit: 0.5, leech: 3, dr: 0.6, voltChance: 1 };
+  }
   function damageReduction() {
-    return Math.min(0.6, weaponPlus('aura') * 0.15);
+    return Math.min(caps().dr, weaponPlus('aura') * 0.15);
   }
   var audioCtx = null;
   var sfxLast = {};
@@ -1655,7 +1678,7 @@
     amount = Math.max(0, amount * (1 - damageReduction()));
     playSfx('hurt');
     player.hp -= amount;
-    if (conduitActive && player.hp < 1) player.hp = 1;
+    if (conduitActive && conduitT > CONDUIT_LEN - 5 && player.hp < 1) player.hp = 1;
     updateHud();
     if (player.hp <= 0) { player.hp = 0; die(); }
   }
@@ -1666,7 +1689,7 @@
     ovSub.textContent = 'CONDUIT · 20 秒';
     ovText.style.display = 'none';
     ovFinal.style.display = 'block';
-    ovFinal.innerHTML = '开启后 20 秒内：主角最低保留 1 点生命<br>普通敌人二十倍涌现，且移速/血量翻倍<br>全部输出与攻速翻倍 · 击杀不再获得经验，改为每只怪物 +1 金币';
+    ovFinal.innerHTML = '开启后 20 秒内：普通敌人二十倍涌现，且移速/血量翻倍<br>全部输出与攻速翻倍 · 击杀不再获得经验，改为每只怪物 +1 金币（单次上限 150）<br>前 5 秒主角最低保留 1 点生命，之后会真正阵亡';
     cardWrap.innerHTML = '';
     cardWrap.className = 'cards';
     ovRefreshRow.style.display = 'none';
@@ -1695,6 +1718,7 @@
     conduitActive = true;
     conduitDone = true;
     conduitT = CONDUIT_LEN;
+    conduitCoins = 0;
     overlay.classList.add('hidden');
     ovBtns.style.display = 'flex';
     state = 'playing';
@@ -1702,7 +1726,7 @@
     shake = Math.max(shake, 6);
     playSfx('conduit');
     floaters.push({ x: W / 2, y: H * 0.32, text: '导管时刻开启！', life: 2.2, color: '#ffd76a', big: true });
-    floaters.push({ x: W / 2, y: H * 0.32 + 36, text: '十倍怪潮 · 输出攻速翻倍 · 击杀得金币', life: 2.2, color: '#fff3e0' });
+    floaters.push({ x: W / 2, y: H * 0.32 + 36, text: '二十倍怪潮 · 输出攻速翻倍 · 击杀得金币', life: 2.2, color: '#fff3e0' });
     updateHud();
   }
 
@@ -1906,7 +1930,7 @@
     while (player.xp >= player.xpNeed) {
       player.xp -= player.xpNeed;
       player.level++;
-      player.xpNeed = 6 + (player.level - 1) * 4;
+      player.xpNeed = isStandard() ? 10 + (player.level - 1) * 6 : 6 + (player.level - 1) * 4;
       levelQueue++;
     }
     if (levelQueue > 0) openLevelUp();
@@ -1920,7 +1944,7 @@
     xpFill.style.width = Math.min(100, player.xp / player.xpNeed * 100) + '%';
     lvText.textContent = 'Lv.' + player.level;
     wvEl.textContent = Math.min(wave, maxWave()) + ' / ' + maxWave();
-    wtEl.textContent = conduitActive ? ('导管 ' + Math.ceil(Math.max(0, conduitT))) : Math.ceil(Math.max(0, WAVE_LEN - waveT));
+    wtEl.textContent = conduitActive ? ('导管 ' + Math.ceil(Math.max(0, conduitT))) : Math.ceil(Math.max(0, waveLen() - waveT));
     killEl.textContent = kills;
     coinEl.textContent = player.coins;
     sRateEl.textContent = (player.rate * rateMult()).toFixed(1) + '/s';
@@ -2013,7 +2037,7 @@
     var normalHp = 6 + wave * 3;
     var normalSpeed = 46 + wave * 2.5 + Math.random() * 18;
     if (std) {
-      normalHp = Math.round(normalHp * 2.15 + wave * 2.8);
+      normalHp = Math.round(14 * Math.pow(1.23, wave - 1));
       normalSpeed *= 1.28;
     }
 
@@ -2044,7 +2068,7 @@
 
     var hp, r, speed;
     if (elite) {
-      hp = Math.round((80 + wave * 22) * (std ? 2.0 : 1));
+      hp = std ? Math.round(120 * Math.pow(1.23, wave - 2)) : Math.round(80 + wave * 22);
       r = 34;
       speed = (85 + wave * 5) * (std ? 1.28 : 1);
       if (std && wave >= 8 && Math.random() < 0.35) {
@@ -2557,7 +2581,7 @@
       d = Math.sqrt(dx * dx + dy * dy) || 1;
       if (d < p.r + e.r * 0.85 && p.inv <= 0) {
         var dmg = e.elite ? 8 + wave * 2 : 3 + wave;
-        if (isStandard()) dmg = e.elite ? Math.round(dmg * 1.65) : dmg + Math.ceil(wave / 2);
+        if (isStandard()) dmg = e.elite ? Math.round(dmg * 1.5) : dmg + Math.ceil(wave / 2);
         hurtPlayer(dmg);
         p.inv = 0.65;
         shake = 4;
@@ -2608,11 +2632,11 @@
     if (!player || !target || target.dead) return;
     var s = weaponStar('volt');
     if (!s) return;
-    var chance = Math.min(1, s * 0.1 + weaponPlus('volt') * 0.1);
+    var chance = Math.min(caps().voltChance, s * 0.1 + weaponPlus('volt') * 0.1);
     if (Math.random() >= chance) return;
     playSfx('zap');
     var dmg = Math.max(1, Math.round(player.dmg * dmgMult() * 0.5));
-    var count = 1 + (s - 1) * 2;
+    var count = 1 + (s - 1);
     var cand = [];
     for (var i = 0; i < enemies.length; i++) {
       var e = enemies[i];
@@ -2637,7 +2661,13 @@
     kills++;
     combo++;
     comboT = 2;
-    player.coins += e.elite ? 5 : 1;
+    var gain = e.elite ? 5 : 1;
+    if (conduitActive) {
+      var room = 150 - conduitCoins;
+      gain = Math.max(0, Math.min(gain, room));
+      conduitCoins += gain;
+    }
+    player.coins += gain;
     playSfx('coin');
     if (!conduitActive) gainXp(e.elite ? 15 : 1);
 
@@ -2744,7 +2774,7 @@
           x: boss.x, y: boss.y,
           vx: Math.cos(a) * 220, vy: Math.sin(a) * 220,
           r: 8, life: 3,
-          dmg: isStandard() ? 10 : 6
+          dmg: isStandard() ? 15 : 6
         });
       }
     }
@@ -2784,7 +2814,7 @@
         rings.push({ x: p.x, y: p.y, max: 80, t: -0.6 });  // 负t表示预警
         setTimeout(function () {
           if (boss && !boss.dead) {
-            doBoom(p.x, p.y, 80, 20, true);
+            doBoom(p.x, p.y, 80, isStandard() ? 30 : 20, true);
           }
         }, 600);
       }
@@ -2792,7 +2822,7 @@
 
     // Boss 接触伤害
     if (!boss.charging && Math.hypot(p.x - boss.x, p.y - boss.y) < p.r + boss.r * 0.8 && p.inv <= 0) {
-      var bdmg = (10 + boss.phase * 3) * (isStandard() ? 1.5 : 1);
+      var bdmg = (10 + boss.phase * 3) * (isStandard() ? 1.8 : 1);
       hurtPlayer(bdmg);
       p.inv = 0.7;
       shake = 5;
@@ -2990,7 +3020,7 @@
       spawnT -= dt;
       if (spawnT <= 0) {
         spawnT = 0.012 + Math.random() * 0.008;
-        var dcap = Math.min(180, Math.round((20 + wave * 3) * (isStandard() ? 1.5 : 1) * 3));
+        var dcap = Math.min(120, Math.round((20 + wave * 3) * (isStandard() ? 1.5 : 1) * 3));
         if (enemies.length < dcap) {
           var cr = Math.random();
           var ck = 'normal';
@@ -3024,7 +3054,7 @@
     }
 
     // 偶数波的最后 10 秒：刷精英（6 波起 3 只，之前 2 只）
-    if (!eliteSpawned && wave % 2 === 0 && waveT >= WAVE_LEN - 10) {
+    if (!eliteSpawned && wave % 2 === 0 && waveT >= waveLen() - 10) {
       eliteSpawned = true;
       var cnt = wave >= 8 ? 3 : 2;
       spawnEnemy(true, 0);
@@ -3037,10 +3067,10 @@
       floaters.push({ x: W / 2, y: H * 0.3 + 36, text: '打倒它们，本波才会结束', life: 2.6, color: '#ffc8dd' });
     }
 
-    if (waveT >= WAVE_LEN) {
+    if (waveT >= waveLen()) {
       // 精英怪没被消灭，这一波不结束
       if (countElites() > 0) {
-        waveT = WAVE_LEN;
+        waveT = waveLen();
         if (!eliteWarned) {
           eliteWarned = true;
           floaters.push({ x: W / 2, y: H * 0.3, text: '先消灭精英怪！', life: 2.2, color: '#ff9ec7', big: true });
@@ -3056,7 +3086,7 @@
       waveT = 0;
       eliteSpawned = false;
       eliteWarned = false;
-      if (wave % 2 === 0 && wave < maxWave()) { waveT = 0; openShop(); return; }
+      if (wave % shopGap() === 0 && wave < maxWave()) { waveT = 0; openShop(); return; }
       nextWave();
     }
     spawnT -= dt;
