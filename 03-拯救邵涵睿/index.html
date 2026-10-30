@@ -784,6 +784,29 @@
     cd: 7,
     credit: 1.2       // 冲刺摸到过的敌人，被子弹收掉也算剑击杀的窗口
   };
+  // 新武器定义
+  var WEAPON_DEFS = {
+    bow: {
+      id: 'bow', type: 'ranged', nm: '恋之弓', ic: '🏹',
+      dmg: 14, cd: 0.5, speed: 600, pierce: 1,
+      desc: '自动向最近敌人射箭，穿透1个敌人'
+    },
+    aura: {
+      id: 'aura', type: 'aura', nm: '守护光环', ic: '🔮',
+      dmg: 5, tick: 0.4, radius: 75,
+      desc: '主角周围持续伤害光环'
+    },
+    boom: {
+      id: 'boom', type: 'throw', nm: '回旋飞心', ic: '💫',
+      dmg: 10, cd: 1.0, speed: 350,
+      desc: '扔出回旋飞心，来回伤害敌人'
+    },
+    tome: {
+      id: 'tome', type: 'projectile', nm: '魔法弹幕', ic: '📖',
+      dmg: 6, cd: 0.8, count: 4, speed: 280,
+      desc: '向四周发射魔法弹幕'
+    }
+  };
   var DASH_TIME = 0.14, DASH_DIST = 200;
   var RAGE_STEP = 50, RAGE_BARS = 3, RAGE_MAX = RAGE_STEP * RAGE_BARS;
   var MODE_PER_BAR = 2;   // 每消耗一格怒气提供的秒数
@@ -826,31 +849,46 @@
   }
 
   function acquireWeapon(id) {
-    var def = (id === 'katana') ? KATANA : null;
+    var def = (id === 'katana') ? KATANA : WEAPON_DEFS[id];
     if (!def || !player) return;
-    var cur = meleeWeapon();
-    if (cur && cur.id === id && cur.star < 2) {
-      // 多余武器先进局内背包，攒够三把自动合成二星
-      bpAdd(id);
-      var total = 1 + bpCount(id);
-      if (total >= KATANA_MERGE) {
-        cur.star = 2;
-        bpTakeAll(id);
-        flashT = 0.16; flashCol = '#ffd29b';
-        shake = Math.max(shake, 4);
-        floaters.push({ x: player.x, y: player.y - 44, text: '合成 二星武士刀！', life: 2, color: '#ffd76a', big: true });
+    if (id === 'katana') {
+      // 武士刀的合成逻辑保持不变
+      var cur = meleeWeapon();
+      if (cur && cur.id === id && cur.star < 2) {
+        bpAdd(id);
+        var total = 1 + bpCount(id);
+        if (total >= KATANA_MERGE) {
+          cur.star = 2;
+          bpTakeAll(id);
+          flashT = 0.16; flashCol = '#ffd29b';
+          shake = Math.max(shake, 4);
+          floaters.push({ x: player.x, y: player.y - 44, text: '合成 二星武士刀！', life: 2, color: '#ffd76a', big: true });
+        } else {
+          floaters.push({ x: player.x, y: player.y - 40, text: '存入背包 · 武士刀 ' + total + ' / ' + KATANA_MERGE, life: 1.6, color: '#ffcfa6', size: 15 });
+        }
       } else {
-        floaters.push({ x: player.x, y: player.y - 40, text: '存入背包 · 武士刀 ' + total + ' / ' + KATANA_MERGE, life: 1.6, color: '#ffcfa6', size: 15 });
+        var had = !!(cur && cur.id === id);
+        if (cur && !had) {
+          player.weapons.splice(player.weapons.indexOf(cur), 1);
+          floaters.push({ x: player.x, y: player.y - 40, text: '替换为 武士刀', life: 1.6, color: '#ffcfa6', size: 15 });
+        } else if (!had) {
+          floaters.push({ x: player.x, y: player.y - 40, text: '获得 武士刀', life: 1.8, color: '#ffd76a', size: 16 });
+        }
+        if (!had) player.weapons.push({ id: id, type: def.type, star: 1 });
       }
     } else {
-      var had = !!(cur && cur.id === id);
-      if (cur && !had) {
-        player.weapons.splice(player.weapons.indexOf(cur), 1);
-        floaters.push({ x: player.x, y: player.y - 40, text: '替换为 武士刀', life: 1.6, color: '#ffcfa6', size: 15 });
-      } else if (!had) {
-        floaters.push({ x: player.x, y: player.y - 40, text: '获得 武士刀', life: 1.8, color: '#ffd76a', size: 16 });
+      // 新武器：检查是否已拥有，已拥有则升级（伤害/效果增强）
+      var existing = null;
+      for (var i = 0; i < player.weapons.length; i++) {
+        if (player.weapons[i].id === id) { existing = player.weapons[i]; break; }
       }
-      if (!had) player.weapons.push({ id: id, type: def.type, star: 1 });
+      if (existing) {
+        existing.star = Math.min(3, (existing.star || 1) + 1);
+        floaters.push({ x: player.x, y: player.y - 40, text: def.nm + ' 强化至 Lv.' + existing.star, life: 1.8, color: '#b8e0ff', size: 15 });
+      } else {
+        player.weapons.push({ id: id, type: def.type, star: 1 });
+        floaters.push({ x: player.x, y: player.y - 40, text: '获得 ' + def.nm, life: 1.8, color: '#b8e0ff', size: 16 });
+      }
     }
     updateWbar();
   }
@@ -865,8 +903,34 @@
       return;
     }
     var k = meleeWeapon();
-    if (!k || k.id !== 'katana') {
-      if (wbarLast !== '') { wbar.innerHTML = ''; wbarLast = ''; }
+    var hasKatana = !!(k && k.id === 'katana');
+
+    // 构建武器栏：显示所有已拥有的武器
+    var slots = '';
+    for (var wi = 0; wi < player.weapons.length; wi++) {
+      var w = player.weapons[wi];
+      var def = (w.id === 'katana') ? KATANA : WEAPON_DEFS[w.id];
+      if (!def) continue;
+      var st = w.star === 2 ? '★★' : (w.star === 3 ? '★★★' : '★');
+      var cdInfo = '';
+      if (w.id === 'katana') {
+        cdInfo = player.dashCd > 0 ? player.dashCd.toFixed(1) + 's' : '就绪';
+      } else if (w.id === 'bow') {
+        cdInfo = Math.max(0, player.wCd.bow).toFixed(1) + 's';
+      } else if (w.id === 'boom') {
+        cdInfo = Math.max(0, player.wCd.boom).toFixed(1) + 's';
+      } else if (w.id === 'tome') {
+        cdInfo = Math.max(0, player.wCd.tome).toFixed(1) + 's';
+      } else if (w.id === 'aura') {
+        cdInfo = '持续';
+      }
+      slots += '<div class="wslot"><span>' + def.ic + '</span>' +
+        '<span>' + def.nm + ' <span class="st">' + st + '</span></span>' +
+        '<span class="cd">' + cdInfo + '</span></div>';
+    }
+
+    if (!hasKatana) {
+      if (slots !== wbarLast) { wbar.innerHTML = slots; wbarLast = slots; }
       dashBtn.style.display = 'none';
       rageBtn.style.display = 'none';
       return;
@@ -882,12 +946,10 @@
     var bpN = bpCount('katana');
     var bp = bpN > 0 ? '<div class="wslot"><span>🎒</span><span>背包 武士刀 ×' +
       (1 + bpN) + ' / ' + KATANA_MERGE + '</span></div>' : '';
-    var html = '<div class="wslot"><span>' + KATANA.ic + '</span>' +
-      '<span>' + KATANA.nm + ' <span class="st">' + ast + '</span></span>' +
-      '<span class="cd">' + cdTxt + '</span></div>' +
-      '<div class="wslot"><span>怒</span><div class="rbar">' + segs + '</div>' +
+    var rageSlot = '<div class="wslot"><span>怒</span><div class="rbar">' + segs + '</div>' +
       '<span class="cd">' + rageTxt + '</span></div>';
-    if (html !== wbarLast) { wbar.innerHTML = html + bp; wbarLast = html + bp; }
+    var html = slots + rageSlot + bp;
+    if (html !== wbarLast) { wbar.innerHTML = html; wbarLast = html; }
     if (player.mode) {
       dashBtn.style.display = 'block';
       dashBtn.disabled = player.dashCd > 0 || !!player.dash;
@@ -904,7 +966,19 @@
   var SHOP_ITEMS = [
     { id: 'katana', nm: '武士刀', ic: '🗡️', price: 20,
       ds: '近战槽 · 怒气满一格按空格进入冲刺模式，模式内右键冲刺；命中 -6 秒冷却，击杀全返还；三把合成二星（伤害 50，模式内冲刺可攒怒气）',
-      can: function () { return canOfferKatana(); } }
+      can: function () { return canOfferKatana(); } },
+    { id: 'bow', nm: '恋之弓', ic: '🏹', price: 25,
+      ds: '远程槽 · 自动向最近敌人射箭，穿透1个敌人。重复购买可升级（伤害+5，冷却-12%，穿透+1）',
+      can: function () { return weaponStar('bow') < 3; } },
+    { id: 'aura', nm: '守护光环', ic: '🔮', price: 30,
+      ds: '被动 · 主角周围持续伤害光环。重复购买可升级（伤害+3，范围+10）',
+      can: function () { return weaponStar('aura') < 3; } },
+    { id: 'boom', nm: '回旋飞心', ic: '💫', price: 28,
+      ds: '投掷 · 扔出回旋飞心来回伤害敌人。重复购买可升级（伤害+4，冷却-10%）',
+      can: function () { return weaponStar('boom') < 3; } },
+    { id: 'tome', nm: '魔法弹幕', ic: '📖', price: 26,
+      ds: '弹幕 · 向四周发射魔法弹幕。重复购买可升级（伤害+3，弹幕数+1）',
+      can: function () { return weaponStar('tome') < 3; } }
   ];
 
   function buildShop() {
@@ -1028,7 +1102,11 @@
       coins: 0,
       rage: 0, mode: false, modeT: 0,
       fcd: 0, inv: 0, regen: 0, regenCd: 0,
-      aim: 0, targetX: W / 2, targetY: H / 2, hasTarget: false, target: null
+      aim: 0, targetX: W / 2, targetY: H / 2, hasTarget: false, target: null,
+      // 新武器冷却
+      wCd: { bow: 0, aura: 0, boom: 0, tome: 0 },
+      // 回旋镖列表
+      boomerangs: []
     };
 
     // 局外养成加成（只在开局时结算为基础属性）
@@ -1403,6 +1481,136 @@
         p.modeT = 0;
         floaters.push({ x: p.x, y: p.y - 46, text: '冲刺模式结束', life: 1.5, color: '#ffc8dd', size: 15 });
         updateWbar();
+      }
+    }
+
+    // ---------- 新武器攻击逻辑 ----------
+    updateWeapons(dt);
+  }
+
+  function hasWeapon(id) {
+    if (!player) return false;
+    for (var i = 0; i < player.weapons.length; i++) {
+      if (player.weapons[i].id === id) return true;
+    }
+    return false;
+  }
+  function weaponStar(id) {
+    if (!player) return 0;
+    for (var i = 0; i < player.weapons.length; i++) {
+      if (player.weapons[i].id === id) return player.weapons[i].star || 1;
+    }
+    return 0;
+  }
+
+  function updateWeapons(dt) {
+    var p = player;
+    if (!p) return;
+
+    // 恋之弓：向最近敌人射箭
+    if (hasWeapon('bow')) {
+      p.wCd.bow -= dt;
+      var s = weaponStar('bow');
+      if (p.wCd.bow <= 0 && p.target && !p.target.dead) {
+        p.wCd.bow = WEAPON_DEFS.bow.cd * (1 - (s - 1) * 0.12);
+        var dmg = WEAPON_DEFS.bow.dmg + (s - 1) * 5;
+        var ang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
+        bullets.push({
+          x: p.x, y: p.y, vx: Math.cos(ang) * WEAPON_DEFS.bow.speed,
+          vy: Math.sin(ang) * WEAPON_DEFS.bow.speed,
+          r: 5, dmg: dmg, life: 1.6, pierce: WEAPON_DEFS.bow.pierce + (s - 1),
+          col: 'rgba(255, 180, 220,', friendly: true, bow: true, hitIds: []
+        });
+      }
+    }
+
+    // 守护光环：持续范围伤害
+    if (hasWeapon('aura')) {
+      p.wCd.aura -= dt;
+      var sa = weaponStar('aura');
+      if (p.wCd.aura <= 0) {
+        p.wCd.aura = WEAPON_DEFS.aura.tick;
+        var admg = WEAPON_DEFS.aura.dmg + (sa - 1) * 3;
+        var ar = WEAPON_DEFS.aura.radius + (sa - 1) * 10;
+        for (var ai = 0; ai < enemies.length; ai++) {
+          var ae = enemies[ai];
+          if (ae.dead) continue;
+          if (Math.hypot(ae.x - p.x, ae.y - p.y) < ar + ae.r) {
+            hitEnemy(ae, admg, false, false, false);
+          }
+        }
+        // 光环视觉效果（使用兼容 drawRings 的格式）
+        rings.push({ x: p.x, y: p.y, max: ar, t: 0 });
+      }
+    }
+
+    // 回旋飞心：扔出回旋镖
+    if (hasWeapon('boom')) {
+      p.wCd.boom -= dt;
+      var sb = weaponStar('boom');
+      if (p.wCd.boom <= 0 && p.target && !p.target.dead) {
+        p.wCd.boom = WEAPON_DEFS.boom.cd * (1 - (sb - 1) * 0.1);
+        var bdmg = WEAPON_DEFS.boom.dmg + (sb - 1) * 4;
+        var bang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
+        var cnt = 1 + Math.floor((sb - 1) / 2);
+        for (var bi = 0; bi < cnt; bi++) {
+          var offset = (bi - (cnt - 1) / 2) * 0.3;
+          p.boomerangs.push({
+            x: p.x, y: p.y, ang: bang + offset,
+            t: 0, maxT: 1.2, speed: WEAPON_DEFS.boom.speed,
+            dmg: bdmg, hitIds: [], returning: false
+          });
+        }
+      }
+    }
+    // 更新回旋镖
+    for (var bi = p.boomerangs.length - 1; bi >= 0; bi--) {
+      var bm = p.boomerangs[bi];
+      bm.t += dt;
+      if (bm.t > bm.maxT * 0.5 && !bm.returning) bm.returning = true;
+      if (bm.returning) {
+        // 返回玩家
+        var bang2 = Math.atan2(p.y - bm.y, p.x - bm.x);
+        bm.x += Math.cos(bang2) * bm.speed * dt;
+        bm.y += Math.sin(bang2) * bm.speed * dt;
+        if (Math.hypot(bm.x - p.x, bm.y - p.y) < 20) {
+          p.boomerangs.splice(bi, 1);
+          continue;
+        }
+      } else {
+        bm.x += Math.cos(bm.ang) * bm.speed * dt;
+        bm.y += Math.sin(bm.ang) * bm.speed * dt;
+      }
+      // 碰撞检测
+      for (var ei = 0; ei < enemies.length; ei++) {
+        var ee = enemies[ei];
+        if (ee.dead || bm.hitIds.indexOf(ee) >= 0) continue;
+        if (Math.hypot(ee.x - bm.x, ee.y - bm.y) < ee.r + 10) {
+          bm.hitIds.push(ee);
+          hitEnemy(ee, bm.dmg, false, false, false);
+          burst(ee.x, ee.y, 'rgba(255, 150, 200,', 5, 80);
+        }
+      }
+      if (bm.t > bm.maxT * 1.5) p.boomerangs.splice(bi, 1);
+    }
+
+    // 魔法弹幕：向四周发射
+    if (hasWeapon('tome')) {
+      p.wCd.tome -= dt;
+      var st = weaponStar('tome');
+      if (p.wCd.tome <= 0) {
+        p.wCd.tome = WEAPON_DEFS.tome.cd * (1 - (st - 1) * 0.1);
+        var tdmg = WEAPON_DEFS.tome.dmg + (st - 1) * 3;
+        var tcnt = WEAPON_DEFS.tome.count + (st - 1);
+        for (var ti = 0; ti < tcnt; ti++) {
+          var tang = (Math.PI * 2 / tcnt) * ti + p.aim;
+          bullets.push({
+            x: p.x, y: p.y, vx: Math.cos(tang) * WEAPON_DEFS.tome.speed,
+            vy: Math.sin(tang) * WEAPON_DEFS.tome.speed,
+            r: 6, dmg: tdmg, life: 1.2, pierce: 0,
+            col: 'rgba(150, 200, 255,', friendly: true, tome: true, hitIds: []
+          });
+        }
       }
     }
   }
@@ -2067,6 +2275,27 @@
         ctx.restore();
       }
       drawPlayer(nowT);
+      // 回旋飞心绘制
+      if (player.boomerangs && player.boomerangs.length) {
+        for (var bmi = 0; bmi < player.boomerangs.length; bmi++) {
+          var bm = player.boomerangs[bmi];
+          ctx.save();
+          ctx.translate(bm.x, bm.y);
+          ctx.rotate(bm.t * 12);
+          ctx.fillStyle = '#ff7eb6';
+          ctx.shadowColor = 'rgba(255, 100, 160, .7)';
+          ctx.shadowBlur = 10;
+          // 绘制飞心（简化为旋转的菱形）
+          ctx.beginPath();
+          ctx.moveTo(0, -10);
+          ctx.lineTo(8, 0);
+          ctx.lineTo(0, 10);
+          ctx.lineTo(-8, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
       drawParts(dt);
       drawFloaters(dt);
 
