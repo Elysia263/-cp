@@ -252,6 +252,51 @@
     color: #d8b7ae;
   }
 
+  /* 角色选择 */
+  .charList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 22px;
+  }
+  .charCard {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 150, 110, .28);
+    background: linear-gradient(135deg, rgba(84, 28, 30, .9), rgba(38, 12, 15, .9));
+    color: #ffe3d2;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color .13s, box-shadow .13s, transform .13s;
+  }
+  .charCard:active { transform: scale(.98); }
+  .charCard.on {
+    border-color: rgba(255, 210, 140, .9);
+    box-shadow: 0 12px 30px rgba(255, 140, 90, .28);
+  }
+  .charAv {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+    border: 2px solid rgba(255, 176, 96, .8);
+  }
+  .charInfo { flex: 1; min-width: 0; }
+  .charNm {
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #ffd29b;
+  }
+  .charTag { font-size: 12px; color: #d8b7ae; margin-top: 4px; }
+  .charTalent { font-size: 12px; color: #ffb8d4; margin-top: 6px; line-height: 1.6; }
+  .charPick { font-size: 12px; font-weight: 900; color: #ffd76a; white-space: nowrap; flex: none; }
+
   /* 武器栏（左下） */
   .wbar {
     position: fixed;
@@ -456,6 +501,7 @@
       <p>你是被嫌弃脸附体的救援者，武器会自动攻击最近的敌人。<br>每升一级可挑一项强化；新手难度撑过 <strong>10 波</strong>，标准难度撑过 <strong>20 波</strong>。</p>
       <div class="btns menuCol">
         <button id="btnStart">开始游戏</button>
+        <button id="btnChar" class="ghost">角色</button>
         <button id="btnMeta" class="ghost">养成</button>
       </div>
       <div class="sub" id="menuInfo" style="margin-top:16px"></div>
@@ -492,6 +538,16 @@
         </button>
       </div>
       <div class="btns"><button id="diffBack" class="ghost">返回</button></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="charOverlay">
+    <div class="panel">
+      <span class="kicker">CHARACTER</span>
+      <h1>选择角色</h1>
+      <div class="sub">角色决定这一局的玩法基调，选择会保存在本机</div>
+      <div class="charList" id="charList"></div>
+      <div class="btns"><button id="charBack" class="ghost">返回</button></div>
     </div>
   </div>
 
@@ -560,7 +616,7 @@
         <button id="shopForge" class="ghost">武器强化</button>
         <button id="shopNext">继续下一波</button>
       </div>
-      <div class="sub" id="shopHint" style="margin-top:14px">小怪 +1 金币 · 精英 +5 金币</div>
+      <div class="sub" id="shopHint" style="margin-top:14px">小怪 +1 金币 · 精英 +15 金币</div>
     </div>
   </div>
 
@@ -686,6 +742,10 @@
   var mainMenu = document.getElementById('mainMenu');
   var menuInfo = document.getElementById('menuInfo');
   var btnStart = document.getElementById('btnStart');
+  var btnChar = document.getElementById('btnChar');
+  var charOverlay = document.getElementById('charOverlay');
+  var charList = document.getElementById('charList');
+  var charBack = document.getElementById('charBack');
   var diffOverlay = document.getElementById('diffOverlay');
   var diffNormal = document.getElementById('diffNormal');
   var diffStandard = document.getElementById('diffStandard');
@@ -700,6 +760,7 @@
   var shopOverlay = document.getElementById('shopOverlay');
   var shopWrap = document.getElementById('shopWrap');
   var shopCoins = document.getElementById('shopCoins');
+  var shopHint = document.getElementById('shopHint');
   var shopNext = document.getElementById('shopNext');
   var shopSub = document.getElementById('shopSub');
   var shopRefresh = document.getElementById('shopRefresh');
@@ -718,15 +779,51 @@
   var ovRefresh = document.getElementById('ovRefresh');
 
   var SAVE_KEY = 'sbsave-03';
+  var MAX_WEAPONS = 3;   // 普通角色武器栏上限（白雨桐「学疯了」解除）
+  var CHARACTERS = [
+    {
+      id: 'bai', nm: '白雨桐', av: '素材库/嫌弃脸.jpg',
+      tag: '被嫌弃脸附体的救援者',
+      talent: '学疯了',
+      talentDesc: '局内商店解除 3 把武器上限，可装备全部类型武器',
+      allWeapons: true
+    },
+    {
+      id: 'gunmu', nm: '西格玛滚木', av: '素材库/滚木.avif',
+      tag: '一根滚来滚去的木头',
+      talent: '滚木法则',
+      talentDesc: '所有升级无上限；「观测滚木」的 ×4 强化只在每波最后 8 秒的「滚木时间」生效；无法装备武器、无法获得金币，金币按 1:1 转化为经验',
+      noWeapons: true, noCoins: true, noCaps: true, logUpgrade: true
+    }
+  ];
+  function curChar() {
+    for (var i = 0; i < CHARACTERS.length; i++) {
+      if (CHARACTERS[i].id === SAVE.charId) return CHARACTERS[i];
+    }
+    return CHARACTERS[0];
+  }
+  function noCap() { return !!curChar().noCaps; }
+  function logTime() {   // 滚木时间：每波最后 8 秒
+    if (!curChar().logUpgrade || conduitActive) return false;
+    var left = waveLen() - waveT;
+    return left > 0 && left <= 8;
+  }
+  function weaponCap() { return curChar().allWeapons ? 99 : MAX_WEAPONS; }
+  function slotFree(id) {
+    if (weaponStar(id) > 0) return true;   // 已拥有：只升级，不占新槽
+    if (!player) return true;
+    return player.weapons.length < weaponCap();
+  }
   var SAVE = loadSave();
 
   function loadSave() {
-    var d = { points: 0, eliteKills: 0, clears: 0, lv: { xp: 0, dmg: 0, rate: 0, regen: 0 } };
+    var d = { points: 0, eliteKills: 0, clears: 0, charId: 'bai', lv: { xp: 0, dmg: 0, rate: 0, regen: 0 } };
     try {
       var o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null') || {};
       d.points = Number(o.points) || 0;
       d.eliteKills = Number(o.eliteKills) || 0;
       d.clears = Number(o.clears) || 0;
+      d.charId = String(o.charId || 'bai');
       var lv = o.lv || {};
       for (var k in d.lv) d.lv[k] = Number(lv[k]) || 0;
     } catch (e) { }
@@ -790,7 +887,7 @@
   var keys = {};
   var wave, waveT, spawnT, kills, shake, levelQueue, last = 0, nowT = 0;
   var eliteSpawned = false, eliteWarned = false;
-  var face = null, faceSmall = null, faceElite = null, faceStraw = null, bossFace = null, faceSnicker = null, faceSplit = null, faceShield = null, faceFierce = null, faceLink = null;
+  var face = null, faceSmall = null, faceElite = null, faceStraw = null, bossFace = null, faceSnicker = null, faceSplit = null, faceShield = null, faceFierce = null, faceLink = null, faceLog = null;
   var UPGRADES = [];
   var IMG_FACE = '素材库/嫌弃脸.jpg';
   var IMG_SMALL = '素材库/水鬼.jpg';
@@ -802,6 +899,7 @@
   var IMG_SHIELD = '素材库/绷.jpg';
   var IMG_FIERCE = '素材库/凶狠.png';
   var IMG_LINK = '素材库/红线.jpg';
+  var IMG_LOG = '素材库/滚木.avif';   // 西格玛滚木
 
   // ---------- 尺寸 ----------
   function resize() {
@@ -1116,9 +1214,16 @@
 
   function buildShop() {
     shopCoins.textContent = player.coins;
+    if (curChar().noWeapons) {
+      shopWrap.innerHTML = '<div class="sub">西格玛滚木无法装备武器<br>金币已按 1:1 转化为经验</div>';
+      shopHint.textContent = '本次商店无可用内容 · 直接进入下一波';
+      return;
+    }
+    shopHint.textContent = '小怪 +1 金币 · 精英 +15 金币 · 武器 ' + player.weapons.length + ' / ' +
+      (weaponCap() >= 99 ? '∞' : MAX_WEAPONS) + '（' + curChar().nm + '「' + curChar().talent + '」）';
     shopWrap.innerHTML = '';
     var shown = 0;
-    var items = SHOP_ITEMS.filter(function (it) { return it.can(); });
+    var items = SHOP_ITEMS.filter(function (it) { return it.can() && slotFree(it.id); });
     items.sort(function () { return Math.random() - 0.5; });
     items.forEach(function (it) {
       shown++;
@@ -1150,7 +1255,9 @@
       });
       shopWrap.appendChild(b);
     });
-    if (!shown) shopWrap.innerHTML = '<div class="sub">本局武器已满，暂无补给</div>';
+    if (!shown) shopWrap.innerHTML = '<div class="sub">' + (player.weapons.length >= weaponCap()
+      ? '武器栏已满（' + player.weapons.length + '/' + MAX_WEAPONS + '），只能强化已有武器'
+      : '本局武器已满，暂无补给') + '</div>';
   }
 
   function openShop() {
@@ -1159,7 +1266,7 @@
     shopRerolled = false;
     shopRefresh.disabled = false;
     shopRefresh.textContent = '刷新（1 次）';
-    shopForge.style.display = isStandard() ? '' : 'none';
+    shopForge.style.display = (isStandard() && !curChar().noWeapons) ? '' : 'none';
     buildShop();
     shopOverlay.classList.remove('hidden');
   }
@@ -1297,7 +1404,29 @@
   }
 
   function refreshMenu() {
-    menuInfo.textContent = '养成点 ' + SAVE.points + ' · 已通关 ' + SAVE.clears + ' 次';
+    menuInfo.textContent = '角色 ' + curChar().nm + ' · 养成点 ' + SAVE.points + ' · 已通关 ' + SAVE.clears + ' 次';
+  }
+
+  function renderChar() {
+    var cur = curChar();
+    charList.innerHTML = '';
+    CHARACTERS.forEach(function (c) {
+      var on = (c.id === cur.id);
+      var b = document.createElement('button');
+      b.className = 'charCard' + (on ? ' on' : '');
+      b.innerHTML = '<img class="charAv" src="' + c.av + '" alt="">' +
+        '<div class="charInfo"><div class="charNm">' + c.nm + '</div>' +
+        '<div class="charTag">' + c.tag + '</div>' +
+        '<div class="charTalent">天赋「' + c.talent + '」· ' + c.talentDesc + '</div></div>' +
+        '<div class="charPick">' + (on ? '已选择' : '选择') + '</div>';
+      b.addEventListener('click', function () {
+        SAVE.charId = c.id;
+        writeSave();
+        renderChar();
+        refreshMenu();
+      });
+      charList.appendChild(b);
+    });
   }
 
   // ---------- 局内暂停 ----------
@@ -1328,6 +1457,7 @@
     pauseOverlay.classList.add('hidden');
     forgeOverlay.classList.add('hidden');
     diffOverlay.classList.add('hidden');
+    charOverlay.classList.add('hidden');
     cardWrap.innerHTML = '';
     mainMenu.classList.remove('hidden');
     refreshMenu();
@@ -1374,8 +1504,12 @@
     combo = 0; comboT = 0; flashT = 0;
     wave = 1; waveT = 0; spawnT = 0;
     kills = 0; shake = 0; levelQueue = 0;
+    logUpCount = 0; observeLeft = 0; observePending = false;
+    logActive = false;
+    logBuff = { dmg: 0, rate: 1, speed: 1, hp: 0, shots: 0, regen: 0, pierce: 0, crit: 0, boom: 0, leech: 0 };
     eliteSpawned = false; eliteWarned = false;
     conduitPending = false; conduitActive = false; conduitT = 0; conduitDone = false;
+    conduitHpSave = null;
     state = 'playing';
     ovSub.textContent = 'ROGUELIKE · SURVIVE ' + maxWave() + ' WAVES';
     overlay.classList.add('hidden');
@@ -1383,6 +1517,7 @@
     pauseOverlay.classList.add('hidden');
     forgeOverlay.classList.add('hidden');
     diffOverlay.classList.add('hidden');
+    charOverlay.classList.add('hidden');
     mainMenu.classList.add('hidden');
     tipEl.textContent = 'WASD / 方向键移动 · 按空格消耗全部怒气进入冲刺模式（每格 2 秒） · 模式内右键冲刺';
     tipEl.style.display = 'block';
@@ -1392,38 +1527,62 @@
 
   // ---------- 升级池 ----------
   function buildUpgrades() {
+    var nc = noCap();   // 西格玛滚木：所有升级数值不设上限
     UPGRADES = [
-      { id: 'dmg', ic: '💥', nm: '情深似海', ds: '子弹伤害 +4',
-        fn: function () { player.dmg += 4; } },
-      { id: 'rate', ic: '⚡', nm: '上下其手', ds: '攻击速度 +18%（上限 ' + caps().rate.toFixed(1) + ' 次/秒）',
-        can: function () { return player.rate < caps().rate; },
-        fn: function () { player.rate = Math.min(caps().rate, player.rate * 1.18); } },
-      { id: 'speed', ic: '👟', nm: '心急如焚', ds: '移动速度 +8%（上限 340）',
-        can: function () { return player.speed < 340; },
-        fn: function () { player.speed = Math.min(340, player.speed * 1.08); } },
-      { id: 'hp', ic: '❤️', nm: '此刻拥吻', ds: '生命上限 +20，并回复 20',
-        fn: function () { player.maxHp += 20; player.hp = Math.min(player.maxHp, player.hp + 20); } },
-      { id: 'shot', ic: '🔫', nm: '为爱痴狂', ds: '每次多发射 1 颗子弹（最多 5）',
-        can: function () { return player.shots < 5; },
-        fn: function () { player.shots = Math.min(5, player.shots + 1); } },
-      { id: 'regen', ic: '🌿', nm: '她的救赎', ds: '每 2 秒回复 4 点生命',
-        fn: function () { player.regen += 4; } },
-      { id: 'pierce', ic: '🏹', nm: '一箭穿心', ds: '所有子弹与武器弹幕额外穿透 1 个敌人（最多 3 层）',
-        can: function () { return player.pierce < 3; },
-        fn: function () { player.pierce++; } },
-      { id: 'crit', ic: '💗', nm: '心动暴击', ds: '暴击率 +10%，暴击伤害 ×2（最多 ' + Math.round(caps().crit * 100) + '%）',
-        can: function () { return player.crit < caps().crit - 1e-6; },
-        fn: function () { player.crit = Math.min(caps().crit, player.crit + 0.1); } },
-      { id: 'boom', ic: '🎆', nm: '爱意爆裂', ds: '击杀时对周围敌人造成范围伤害（最多 3 层）',
-        can: function () { return player.boomLevel < 3; },
-        fn: function () {
-          player.boomLevel++;
-          player.boomPct = [0, 0.3, 0.45, 0.6][player.boomLevel];
-          player.boomR = [0, 60, 75, 90][player.boomLevel];
+      { id: 'dmg', ic: '💥', nm: '情深似海', ds: '子弹伤害 +4' + (nc ? '（无上限）' : ''),
+        fn: function (k) { player.dmg += 4 * (k || 1); } },
+      { id: 'rate', ic: '⚡', nm: '上下其手',
+        ds: '攻击速度 +18%' + (nc ? '（无上限）' : '（上限 ' + caps().rate.toFixed(1) + ' 次/秒）'),
+        can: function () { return noCap() || player.rate < caps().rate; },
+        fn: function (k) {
+          var v = player.rate * (1 + 0.18 * (k || 1));
+          player.rate = noCap() ? v : Math.min(caps().rate, v);
         } },
-      { id: 'leech', ic: '🫂', nm: '她的怀抱', ds: '每次击杀回复 0.6 生命（最多 ' + caps().leech + ' 层）',
-        can: function () { return player.leech < caps().leech; },
-        fn: function () { player.leech++; } }
+      { id: 'speed', ic: '👟', nm: '心急如焚',
+        ds: '移动速度 +8%' + (nc ? '（无上限）' : '（上限 340）'),
+        can: function () { return noCap() || player.speed < 340; },
+        fn: function (k) {
+          var v = player.speed * (1 + 0.08 * (k || 1));
+          player.speed = noCap() ? v : Math.min(340, v);
+        } },
+      { id: 'hp', ic: '❤️', nm: '此刻拥吻', ds: '生命上限 +20，并回复 20' + (nc ? '（无上限）' : ''),
+        fn: function (k) {
+          var v = 20 * (k || 1);
+          player.maxHp += v;
+          player.hp = Math.min(player.maxHp, player.hp + v);
+        } },
+      { id: 'shot', ic: '🔫', nm: '为爱痴狂',
+        ds: '每次多发射 1 颗子弹' + (nc ? '（无上限）' : '（最多 5）'),
+        can: function () { return noCap() || player.shots < 5; },
+        fn: function (k) {
+          var v = k || 1;
+          player.shots = noCap() ? player.shots + v : Math.min(5, player.shots + v);
+        } },
+      { id: 'regen', ic: '🌿', nm: '她的救赎', ds: '每 2 秒回复 4 点生命' + (nc ? '（无上限）' : ''),
+        fn: function (k) { player.regen += 4 * (k || 1); } },
+      { id: 'pierce', ic: '🏹', nm: '一箭穿心',
+        ds: '所有子弹与武器弹幕额外穿透 1 个敌人' + (nc ? '（无上限）' : '（最多 3 层）'),
+        can: function () { return noCap() || player.pierce < 3; },
+        fn: function (k) { player.pierce += (k || 1); } },
+      { id: 'crit', ic: '💗', nm: '心动暴击',
+        ds: '暴击率 +10%，暴击伤害 ×2' + (nc ? '（无上限）' : '（最多 ' + Math.round(caps().crit * 100) + '%）'),
+        can: function () { return noCap() || player.crit < caps().crit - 1e-6; },
+        fn: function (k) {
+          var v = player.crit + 0.1 * (k || 1);
+          player.crit = noCap() ? v : Math.min(caps().crit, v);
+        } },
+      { id: 'boom', ic: '🎆', nm: '爱意爆裂',
+        ds: '击杀时对周围敌人造成范围伤害' + (nc ? '（无上限）' : '（最多 3 层）'),
+        can: function () { return noCap() || player.boomLevel < 3; },
+        fn: function (k) {
+          player.boomLevel += (k || 1);
+          player.boomPct = 0.3 + 0.15 * (player.boomLevel - 1);
+          player.boomR = 60 + 15 * (player.boomLevel - 1);
+        } },
+      { id: 'leech', ic: '🫂', nm: '她的怀抱',
+        ds: '每次击杀回复 0.6 生命' + (nc ? '（无上限）' : '（最多 ' + caps().leech + ' 层）'),
+        can: function () { return noCap() || player.leech < caps().leech; },
+        fn: function (k) { player.leech += (k || 1); } }
     ];
   }
 
@@ -1452,10 +1611,147 @@
   }
 
   var levelRerolled = false, shopRerolled = false;
+  var LOG_STEP = 4;   // 滚木升级：每集满 4 次开启「观测滚木」
+  var logUpCount = 0, observeLeft = 0, observePending = false;
+  var logActive = false;   // 滚木加成是否已叠加到当前属性
+  var logBuff = { dmg: 0, rate: 1, speed: 1, hp: 0, shots: 0, regen: 0, pierce: 0, crit: 0, boom: 0, leech: 0 };
+
+  function applyLogBuff() {
+    if (logActive || !player) return;
+    logActive = true;
+    player.dmg += logBuff.dmg;
+    player.rate *= logBuff.rate;
+    player.speed *= logBuff.speed;
+    player.maxHp += logBuff.hp;
+    player.hp = Math.min(player.maxHp, player.hp + logBuff.hp);
+    player.shots += logBuff.shots;
+    player.regen += logBuff.regen;
+    player.pierce += logBuff.pierce;
+    player.crit += logBuff.crit;
+    player.leech += logBuff.leech;
+    if (logBuff.boom) {
+      player.boomLevel += logBuff.boom;
+      player.boomPct = 0.3 + 0.15 * (player.boomLevel - 1);
+      player.boomR = 60 + 15 * (player.boomLevel - 1);
+    }
+  }
+
+  function removeLogBuff() {
+    if (!logActive || !player) return;
+    logActive = false;
+    player.dmg -= logBuff.dmg;
+    player.rate /= logBuff.rate;
+    player.speed /= logBuff.speed;
+    player.maxHp -= logBuff.hp;
+    player.hp = Math.min(player.hp, player.maxHp);
+    player.shots -= logBuff.shots;
+    player.regen -= logBuff.regen;
+    player.pierce -= logBuff.pierce;
+    player.crit -= logBuff.crit;
+    player.leech -= logBuff.leech;
+    if (logBuff.boom) {
+      player.boomLevel -= logBuff.boom;
+      player.boomPct = player.boomLevel > 0 ? 0.3 + 0.15 * (player.boomLevel - 1) : 0;
+      player.boomR = player.boomLevel > 0 ? 60 + 15 * (player.boomLevel - 1) : 0;
+    }
+  }
+
+  function syncLogBuff() {
+    if (!player) return;
+    var lt = logTime();
+    if (lt && !logActive) applyLogBuff();
+    else if (!lt && logActive) removeLogBuff();
+  }
+
+  // 观测滚木的 ×4 强化只记入限定增益，不直接写进基础属性
+  function logApply(u) {
+    var was = logActive;
+    if (was) removeLogBuff();
+    if (u.id === 'dmg') logBuff.dmg += 16;
+    else if (u.id === 'rate') logBuff.rate *= 1.72;
+    else if (u.id === 'speed') logBuff.speed *= 1.32;
+    else if (u.id === 'hp') logBuff.hp += 80;
+    else if (u.id === 'shot') logBuff.shots += 4;
+    else if (u.id === 'regen') logBuff.regen += 16;
+    else if (u.id === 'pierce') logBuff.pierce += 4;
+    else if (u.id === 'crit') logBuff.crit += 0.4;
+    else if (u.id === 'boom') logBuff.boom += 4;
+    else if (u.id === 'leech') logBuff.leech += 4;
+    if (was) applyLogBuff();
+    updateHud();
+  }
+
+  function logCard() {
+    return {
+      id: 'logup', ic: '🪵', nm: '滚木升级',
+      ds: '无任何效果 · 已收集 ' + logUpCount + ' / ' + LOG_STEP + '（集满开启「观测滚木」）',
+      fn: function () {
+        logUpCount++;
+        if (logUpCount >= LOG_STEP) {
+          logUpCount = 0;
+          observePending = true;
+        }
+      }
+    };
+  }
+
+  function openObserve() {
+    observePending = false;
+    observeLeft = 2;
+    state = 'observe';
+    playSfx('levelup');
+    flashT = 0.14; flashCol = '#c8f0a0';
+    ovTitle.textContent = '观测滚木';
+    ovSub.textContent = '连续选择两项强化 · 每项效果 ×4（剩余 ' + observeLeft + ' 次）';
+    ovText.style.display = 'none';
+    ovFinal.style.display = 'none';
+    ovBtns.style.display = 'none';
+    ovRefreshRow.style.display = 'none';
+    cardWrap.className = 'cards';
+    renderObserveChoices();
+    overlay.classList.remove('hidden');
+  }
+
+  function renderObserveChoices() {
+    cardWrap.innerHTML = '';
+    var choice = pickUpgrades();
+    choice.forEach(function (u) {
+      var b = document.createElement('button');
+      b.className = 'card';
+      b.innerHTML = '<span class="ic">' + u.ic + '</span><div class="nm">' + u.nm +
+        '</div><div class="ds">×4 效果 · ' + u.ds + '</div>';
+      b.addEventListener('click', function () {
+        logApply(u);
+        observeLeft--;
+        updateHud();
+        if (observeLeft > 0) {
+          ovSub.textContent = '连续选择两项强化 · 每项效果 ×4（剩余 ' + observeLeft + ' 次）';
+          renderObserveChoices();
+        } else {
+          cardWrap.innerHTML = '';
+          overlay.classList.add('hidden');
+          state = 'playing';
+          if (levelQueue > 0) openLevelUp();
+          else ovBtns.style.display = 'flex';
+        }
+      });
+      cardWrap.appendChild(b);
+    });
+  }
 
   // ---------- 导管时刻（仅标准难度，第10波精英清完触发） ----------
   var CONDUIT_LEN = 20;
   var conduitPending = false, conduitActive = false, conduitT = 0, conduitDone = false;
+  var conduitHpSave = null;   // 西格玛滚木：导管时刻临时压到 1 血时保存的原血量
+
+  function syncConduitHp() {
+    if (!conduitActive || !player || !conduitHpSave || curChar().id !== 'gunmu') return;
+    if (player.maxHp > 1) {
+      conduitHpSave.max += player.maxHp - 1;   // 导管期间吃到的生命升级计入恢复值
+      player.maxHp = 1;
+    }
+    if (player.hp > 1) player.hp = 1;
+  }
   var conduitCoins = 0;   // 导管时刻单次金币上限计数
 
   function dmgMult() { return conduitActive ? 2 : 1; }
@@ -1581,12 +1877,24 @@
     playSfx('conduit');
     floaters.push({ x: W / 2, y: H * 0.32, text: '导管时刻开启！', life: 2.2, color: '#ffd76a', big: true });
     floaters.push({ x: W / 2, y: H * 0.32 + 36, text: '二十倍怪潮 · 输出攻速翻倍 · 击杀得金币', life: 2.2, color: '#fff3e0' });
+    if (curChar().id === 'gunmu' && player) {
+      removeLogBuff();   // 先还原限时增益，避免上限出现负值
+      conduitHpSave = { max: player.maxHp, hp: player.hp };
+      player.maxHp = 1;
+      player.hp = 1;
+      floaters.push({ x: W / 2, y: H * 0.32 + 72, text: '滚木：血量上限压至 1', life: 2.2, color: '#ff9b9b' });
+    }
     updateHud();
   }
 
   function endConduit() {
     conduitActive = false;
     conduitT = 0;
+    if (conduitHpSave && player) {
+      player.maxHp = conduitHpSave.max;
+      player.hp = Math.max(1, Math.min(conduitHpSave.hp, player.maxHp));
+      conduitHpSave = null;
+    }
     floaters.push({ x: W / 2, y: H * 0.32, text: '导管时刻结束', life: 1.8, color: '#ffd29b', big: true });
     if (state === 'playing') {
       openShop();
@@ -1658,6 +1966,7 @@
     metaOverlay.classList.add('hidden');
     pauseOverlay.classList.add('hidden');
     forgeOverlay.classList.add('hidden');
+    charOverlay.classList.add('hidden');
   }
   function giveWeapon(id) {
     if (!player) return;
@@ -1728,6 +2037,7 @@
   function renderChoices() {
     cardWrap.innerHTML = '';
     var choice = pickUpgrades();
+    if (curChar().logUpgrade) choice.push(logCard());
     choice.forEach(function (u) {
       var b = document.createElement('button');
       b.className = 'card';
@@ -1736,6 +2046,7 @@
         u.fn();
         levelQueue--;
         updateHud();
+        if (observePending) { openObserve(); return; }
         if (levelQueue > 0) {
           openLevelUp();
         } else {
@@ -2281,10 +2592,10 @@
     }
 
     // 第一发永远沿正角，其余左右交替散开，保证至少一条弹道命中目标
-    var offsets = [0, 0.12, -0.12, 0.24, -0.24];
-    var n = Math.min(p.shots, 5);
+    var n = noCap() ? p.shots : Math.min(p.shots, 5);
     for (var i = 0; i < n; i++) {
-      var a = base + offsets[i];
+      var sp = Math.ceil(i / 2) * 0.12;
+      var a = base + (i === 0 ? 0 : (i % 2 === 1 ? sp : -sp));
       var crit = Math.random() < (p.crit || 0);
       bullets.push({
         x: p.x + Math.cos(a) * (p.r + 10),
@@ -2582,8 +2893,12 @@
       gain = Math.max(0, Math.min(gain, room));
       conduitCoins += gain;
     }
-    player.coins += gain;
-    playSfx('coin');
+    if (curChar().noCoins) {
+      gainXp(gain);   // 西格玛滚木：金币 1:1 转化为经验
+    } else {
+      player.coins += gain;
+      playSfx('coin');
+    }
     if (!conduitActive) gainXp(e.elite ? 40 : 1);
 
     // 剑击杀归属：冲刺摸过的敌人，后续被子弹收掉也返还冷却
@@ -3309,7 +3624,8 @@
     if (p.inv > 0 && Math.floor(p.inv * 20) % 2 === 0) ctx.globalAlpha = 0.55;
 
     var box = p.r / SPR_R * SPR_BOX;
-    ctx.drawImage(face, -box / 2, -box / 2, box, box);
+    var spr = (curChar().id === 'gunmu' && faceLog) ? faceLog : face;
+    ctx.drawImage(spr, -box / 2, -box / 2, box, box);
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -3510,6 +3826,8 @@
     syncPauseBtn();
 
     if (state === 'playing') {
+      syncLogBuff();
+      syncConduitHp();
       updateWave(dt);
       if (state !== 'playing') { render(dt); return; }
       updatePlayer(dt);
@@ -3767,6 +4085,13 @@
     renderMeta();
     metaOverlay.classList.remove('hidden');
   });
+  btnChar.addEventListener('click', function () {
+    renderChar();
+    charOverlay.classList.remove('hidden');
+  });
+  charBack.addEventListener('click', function () {
+    charOverlay.classList.add('hidden');
+  });
   metaClose.addEventListener('click', function () {
     metaOverlay.classList.add('hidden');
   });
@@ -3805,6 +4130,12 @@
       closeForge();
       return;
     }
+    if (!charOverlay.classList.contains('hidden')) {
+      e.preventDefault();
+      charOverlay.classList.add('hidden');
+      mainMenu.classList.remove('hidden');
+      return;
+    }
     if (!diffOverlay.classList.contains('hidden')) {
       e.preventDefault();
       diffOverlay.classList.add('hidden');
@@ -3833,7 +4164,7 @@
 
   loadImg(IMG_FACE).then(function (img) {
     face = makeFace(img, 'rgba(255, 176, 96, .95)', '嫌', '#c4705e');
-    return Promise.all([loadImg(IMG_SMALL), loadImg(IMG_ELITE), loadImg(IMG_STRAW), loadImg(IMG_BOSS), loadImg(IMG_SNICKER), loadImg(IMG_SPLIT), loadImg(IMG_SHIELD), loadImg(IMG_FIERCE), loadImg(IMG_LINK)]);
+    return Promise.all([loadImg(IMG_SMALL), loadImg(IMG_ELITE), loadImg(IMG_STRAW), loadImg(IMG_BOSS), loadImg(IMG_SNICKER), loadImg(IMG_SPLIT), loadImg(IMG_SHIELD), loadImg(IMG_FIERCE), loadImg(IMG_LINK), loadImg(IMG_LOG)]);
   }).then(function (arr) {
     faceSmall = makeFace(arr[0], 'rgba(110, 225, 230, .95)', '鬼', '#3f8f9c');
     faceElite = makeFace(arr[1], 'rgba(255, 120, 180, .95)', '奶', '#8f3558');
@@ -3844,6 +4175,7 @@
     faceShield = makeFace(arr[6], 'rgba(170, 220, 255, .95)', '绷', '#36506b');
     faceFierce = makeFace(arr[7], 'rgba(255, 110, 90, .95)', '狠', '#6b2a22');
     faceLink = makeFace(arr[8], 'rgba(220, 120, 255, .95)', '线', '#3a1a3f', true);
+    faceLog = makeFace(arr[9], 'rgba(180, 220, 150, .95)', '木', '#4a5a34');
     requestAnimationFrame(frame);
   });
 })();
