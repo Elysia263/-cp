@@ -1840,31 +1840,39 @@
     playSfx('levelup');
     flashT = 0.14; flashCol = '#b8e6c8';
     ovTitle.textContent = '笛声悠扬';
-    ovSub.textContent = '惊玺共鸣 · 可召唤随从党中玺';
     ovText.style.display = 'none';
     ovFinal.style.display = 'block';
-    ovFinal.innerHTML = '清空当前弹道增益（弹道数归 1），召唤一名党中玺（可叠加召唤）<br>' +
+    ovFinal.innerHTML = '每召唤一名党中玺消耗 2 点弹道增益计数，计数够 2 点即可连续召唤<br>' +
       '党中玺继承杏仁露 50% 属性（移速 100%）与非数值升级<br>' +
       '自带天赋武器「竹笛」：每 20-n 秒对全屏敌人施加 20% 减速（n = 当前党中玺数量）<br>' +
       '按 E 切换 护花使者 / 野狗撕咬（冷却 5 秒），野狗撕咬时可右键标记集火目标';
-    cardWrap.innerHTML = '';
     cardWrap.className = 'cards';
     ovRefreshRow.style.display = 'none';
     ovBtns.style.display = 'none';
-    var yes = document.createElement('button');
-    yes.className = 'card';
-    yes.innerHTML = '<span class="ic">🫖</span><div class="nm">召唤党中玺</div><div class="ds">清空弹道增益（归 1）· 随从 +1</div>';
-    yes.addEventListener('click', function () {
-      summonFollower();
-      closeFlute();
-    });
+    overlay.classList.remove('hidden');
+    renderFluteChoices();
+  }
+
+  function renderFluteChoices() {
+    var p = player;
+    var alive = 0;
+    for (var i = 0; i < p.followers.length; i++) if (!p.followers[i].dead) alive++;
+    ovSub.textContent = '惊玺共鸣 · 弹道计数 ' + p.shots + ' · 党中玺 ' + alive + ' 名';
+    cardWrap.innerHTML = '';
+    if (p.shots >= 3) {
+      var yes = document.createElement('button');
+      yes.className = 'card';
+      yes.innerHTML = '<span class="ic">🫖</span><div class="nm">召唤党中玺</div><div class="ds">消耗 2 点弹道计数（' + p.shots + ' → ' + (p.shots - 2) + '）· 随从 +1</div>';
+      yes.addEventListener('click', function () { summonFollower(); renderFluteChoices(); });
+      cardWrap.appendChild(yes);
+    }
     var no = document.createElement('button');
     no.className = 'card';
-    no.innerHTML = '<span class="ic">🍃</span><div class="nm">暂且保留</div><div class="ds">保留当前弹道增益，不召唤</div>';
+    no.innerHTML = p.shots >= 3
+      ? '<span class="ic">🍃</span><div class="nm">收工</div><div class="ds">结束本次笛声悠扬，保留剩余计数</div>'
+      : '<span class="ic">🍃</span><div class="nm">暂且保留</div><div class="ds">弹道计数不足 2 点，无法继续召唤</div>';
     no.addEventListener('click', closeFlute);
-    cardWrap.appendChild(yes);
     cardWrap.appendChild(no);
-    overlay.classList.remove('hidden');
   }
 
   function closeFlute() {
@@ -1877,10 +1885,10 @@
 
   function summonFollower() {
     var p = player;
-    p.shots = 1;   // 清空弹道增益计数
+    p.shots = Math.max(1, p.shots - 2);   // 消耗 2 点弹道增益计数
     var alive = 0;
     for (var i = 0; i < p.followers.length; i++) if (!p.followers[i].dead) alive++;
-    var fhp = Math.max(1, Math.round(p.maxHp * 0.5));
+    var fhp = followerMaxHp();
     p.followers.push({
       x: p.x, y: p.y, r: 15,
       maxHp: fhp, hp: fhp,
@@ -1892,6 +1900,32 @@
     floaters.push({ x: p.x, y: p.y - 52, text: '党中玺 参上！', life: 1.6, color: '#b8e6c8', big: true });
     playSfx('levelup');
     updateWbar();
+  }
+
+  // 党中玺生命上限：继承杏仁露当前生命上限的 50%
+  function followerMaxHp() {
+    return Math.max(1, Math.round((player ? player.maxHp : 1) * 0.5));
+  }
+
+  // 属性实时同步：杏仁露每选一项升级，党中玺立刻按 50% 结算（移速 100%）
+  function syncFollowerStats() {
+    if (!player || !player.followers || !player.followers.length) return;
+    var mhp = followerMaxHp();
+    for (var i = 0; i < player.followers.length; i++) {
+      var f = player.followers[i];
+      if (f.maxHp === mhp) continue;
+      f.maxHp = mhp;
+      if (f.hp > mhp) f.hp = mhp;   // 上限下调时同步截断
+    }
+  }
+
+  function healFollowers(amount) {
+    if (!player || !player.followers || amount <= 0) return;
+    for (var i = 0; i < player.followers.length; i++) {
+      var f = player.followers[i];
+      if (f.dead) continue;
+      f.hp = Math.min(f.maxHp, f.hp + amount);
+    }
   }
 
   function applyFluteSlow() {
@@ -1927,7 +1961,7 @@
     for (var i = 0; i < n; i++) {
       var sp = Math.ceil(i / 2) * 0.12;
       var a = base + (i === 0 ? 0 : (i % 2 === 1 ? sp : -sp));
-      var crit = Math.random() < (p.crit || 0);
+      var crit = Math.random() < (p.crit || 0) * 0.5;
       bullets.push({
         x: f.x + Math.cos(a) * (f.r + 6),
         y: f.y + Math.sin(a) * (f.r + 6),
@@ -1937,7 +1971,7 @@
         crit: crit,
         kind: 'basic',
         flute: true,
-        pierce: p.pierce,
+        pierce: Math.floor(p.pierce * 0.5),
         hitIds: [],
         life: 1.3,
         r: 4
@@ -1950,6 +1984,7 @@
   function updateFollowers(dt) {
     if (!player || !player.followers || !player.followers.length) return;
     var p = player;
+    syncFollowerStats();   // 随杏仁露的升级实时同步 50% 属性
     if (p.markTarget && p.markTarget.dead) p.markTarget = null;
     var alive = [];
     var i, f;
@@ -1974,7 +2009,8 @@
         p.fluteCd = Math.max(3, 20 - alive.length);
         applyFluteSlow();
         for (i = 0; i < alive.length; i++) {
-          rings.push({ x: alive[i].x, y: alive[i].y, max: 150, t: 0, dur: 0.7, col: 'rgba(168, 230, 180, 1)' });
+          // 全屏扩散：波纹半径覆盖整块场地后淡出
+          rings.push({ x: alive[i].x, y: alive[i].y, max: Math.hypot(W, H), t: 0, dur: 1.1, from: 0.02, w: 4, col: 'rgba(168, 230, 180, 1)' });
         }
         floaters.push({ x: alive[0].x, y: alive[0].y - alive[0].r - 16, text: '竹笛 · 缓', life: 1, color: '#b8e6c8', size: 13 });
         playSfx('tome');
@@ -1985,6 +2021,10 @@
       f = p.followers[i];
       if (f.dead) continue;
       if (f.hitT > 0) f.hitT -= dt;
+
+      // 回血类升级：每秒回复 50%、每 2 秒回复 50%（折算为持续回复）
+      var regPerSec = (p.regenPerSec || 0) * 0.5 + (p.regen || 0) * 0.25;
+      if (regPerSec > 0 && f.hp < f.maxHp) f.hp = Math.min(f.maxHp, f.hp + regPerSec * dt);
 
       // 移动：护花使者环绕跟随 / 野狗撕咬智能寻敌
       var tx, ty, spd = p.speed;   // 移速 100% 继承
@@ -2003,7 +2043,7 @@
           if (f.biteCd > 0) f.biteCd -= dt;
           if (f.biteCd <= 0 && Math.hypot(tgt.x - f.x, tgt.y - f.y) < f.r + (tgt.r || 20)) {
             f.biteCd = 0.55;
-            var bcrit = Math.random() < (p.crit || 0);
+            var bcrit = Math.random() < (p.crit || 0) * 0.5;
             var bdmg = p.dmg * dmgMult() * 0.5;
             burst(f.x, f.y, 'rgba(200, 230, 190,', 6, 120);
             if (tgt === boss) hitBoss(bcrit ? bdmg * 2 : bdmg, bcrit);
@@ -3308,6 +3348,7 @@
     }
     if (player.leech > 0 && !(boss && !boss.dead)) {
       player.hp = Math.min(player.maxHp, player.hp + 0.6 * player.leech);
+      healFollowers(0.3 * player.leech);   // 击杀回血：党中玺继承 50%
     }
     if (e.elite) {
       player.hp = Math.min(player.maxHp, player.hp + 10);
@@ -3633,6 +3674,7 @@
     if (wave > maxWave()) { clearGame(); return; }
     // 护花使者：阵亡的党中玺在下一波开始时复活
     if (player && player.followers && player.followers.length) {
+      syncFollowerStats();
       for (var fi = 0; fi < player.followers.length; fi++) {
         var fl = player.followers[fi];
         if (fl.dead) {
@@ -4210,13 +4252,14 @@
       rg.t += dt;
       var k = rg.t / (rg.dur || 0.3);
       if (k >= 1) { rings.splice(i, 1); continue; }
-      rg.r = rg.max * (0.3 + k * 0.7);
+      var f0 = rg.from === undefined ? 0.3 : rg.from;
+      rg.r = rg.max * (f0 + k * (1 - f0));
       ctx.save();
       ctx.globalAlpha = (1 - k) * 0.75;
       ctx.beginPath();
       ctx.arc(rg.x, rg.y, rg.r, 0, PI2);
       ctx.strokeStyle = rg.col || '#ffe6b4';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = rg.w || 3;
       ctx.stroke();
       ctx.restore();
     }
